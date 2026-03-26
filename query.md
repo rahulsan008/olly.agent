@@ -250,6 +250,12 @@ Returns: `{ dataUrl, width, height, devicePixelRatio }`
 {}
 ```
 
+Optional replay UI controls:
+
+```json
+{ "fullscreen": false, "autoCloseMs": 8000 }
+```
+
 ## Notes for Devs
 
 - In the side panel Tool Tester tab, pick a tool and pass args JSON.
@@ -263,3 +269,5 @@ Returns: `{ dataUrl, width, height, devicePixelRatio }`
   "moved": true
 }
 ```
+
+- `record_replay` works best on normal `http/https` pages. On sandboxed/restricted frames, browser console may block script/autofocus behavior inside rrweb replay iframes.
