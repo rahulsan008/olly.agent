@@ -17,6 +17,7 @@ const TOOLS = [
   'find_button',
   'find_input',
   'get_page_text',
+  'get_element_text',
   'get_buttons',
   'get_inputs',
   'get_links',
@@ -32,7 +33,8 @@ const TOOLS = [
   'generate_selector',
   'record_start',
   'record_stop',
-  'record_replay'
+  'record_replay',
+  'screenshot'
 ] as const;
 
 const TOOL_HINTS: Partial<Record<(typeof TOOLS)[number], string>> = {
@@ -41,6 +43,7 @@ const TOOL_HINTS: Partial<Record<(typeof TOOLS)[number], string>> = {
   find_by_text: '{ "query": "Login" }',
   find_button: '{ "query": "Submit" }',
   find_input: '{ "query": "Email" }',
+  get_element_text: '{ "selector": "article", "all": false }',
   wait_for_element: '{ "query": "comment box", "timeoutMs": 5000 }',
   wait_for_text: '{ "text": "Welcome" }',
   go_to_url: '{ "url": "https://example.com" }',
@@ -49,6 +52,25 @@ const TOOL_HINTS: Partial<Record<(typeof TOOLS)[number], string>> = {
   press_key: '{ "key": "Enter" }',
   scroll: '{ "direction": "down", "amount": 400 }'
 };
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+  return (
+    <button onClick={copy} style={{
+      fontSize: 11, padding: '2px 8px', borderRadius: 5, cursor: 'pointer',
+      border: '1px solid var(--border)', background: 'transparent',
+      color: copied ? '#86efac' : 'var(--muted)',
+    }}>
+      {copied ? 'Copied!' : 'Copy'}
+    </button>
+  );
+}
 
 function pretty(value: unknown): string {
   try {
@@ -61,15 +83,22 @@ function pretty(value: unknown): string {
 export function ToolTesterPanel() {
   const [tool, setTool] = useState<(typeof TOOLS)[number]>('find_by_text');
   const [query, setQuery] = useState('');
-  const [rawArgs, setRawArgs] = useState('{\n  "query": ""\n}');
+  const [rawArgs, setRawArgs] = useState(TOOL_HINTS['find_by_text'] ?? '{\n  "query": ""\n}');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<TestResult | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
 
-  const placeholder = useMemo(
-    () => TOOL_HINTS[tool] ?? '{\n  "query": ""\n}',
-    [tool]
-  );
+  const defaultArgs = (t: (typeof TOOLS)[number]) => TOOL_HINTS[t] ?? '{\n  "query": ""\n}';
+
+  const handleToolChange = (t: (typeof TOOLS)[number]) => {
+    setTool(t);
+    setQuery('');
+    setRawArgs(defaultArgs(t));
+    setResult(null);
+    setRequestError(null);
+  };
+
+  const placeholder = useMemo(() => defaultArgs(tool), [tool]);
 
   const runTool = async () => {
     setLoading(true);
@@ -114,7 +143,7 @@ export function ToolTesterPanel() {
         <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Tool</label>
         <select
           value={tool}
-          onChange={(e) => setTool(e.target.value as (typeof TOOLS)[number])}
+          onChange={(e) => handleToolChange(e.target.value as (typeof TOOLS)[number])}
           disabled={loading}
           style={{
             width: '100%', padding: '8px 10px', borderRadius: 8, boxSizing: 'border-box',
@@ -182,26 +211,35 @@ export function ToolTesterPanel() {
           border: '1px solid var(--border)',
           borderRadius: 10,
           background: 'var(--surface2)',
-          padding: 10,
           display: 'flex',
           flexDirection: 'column',
-          gap: 8,
-          minHeight: 120
+          minHeight: 120,
+          maxHeight: 320,
+          overflow: 'hidden',
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 12, color: 'var(--muted)' }}>Result</span>
-            {badge && (
-              <span style={{ fontSize: 11, borderRadius: 6, padding: '2px 8px', background: badge.bg, color: badge.fg }}>
-                {badge.label}
-              </span>
-            )}
+          {/* Header */}
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '7px 10px', borderBottom: '1px solid var(--border)', flexShrink: 0,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>Result</span>
+              {badge && (
+                <span style={{ fontSize: 11, borderRadius: 6, padding: '2px 8px', background: badge.bg, color: badge.fg }}>
+                  {badge.label}
+                </span>
+              )}
+            </div>
+            <CopyButton text={pretty(result.data ?? result)} />
           </div>
 
-          {result.error && <div style={{ color: '#fca5a5', fontSize: 12 }}>{result.error}</div>}
-
-          <pre style={{ margin: 0, fontSize: 11, color: 'var(--text)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-            {pretty(result.data ?? result)}
-          </pre>
+          {/* Scrollable body */}
+          <div style={{ overflowY: 'auto', padding: '8px 10px', flex: 1 }}>
+            {result.error && <div style={{ color: '#fca5a5', fontSize: 12, marginBottom: 4 }}>{result.error}</div>}
+            <pre style={{ margin: 0, fontSize: 11, color: 'var(--text)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              {pretty(result.data ?? result)}
+            </pre>
+          </div>
         </div>
       )}
     </div>

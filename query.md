@@ -98,6 +98,34 @@ Recommended when focus is uncertain:
 {}
 ```
 
+With title:
+
+```json
+{ "includeTitle": true }
+```
+
+`get_element_text`
+
+Extract text (and image alt, username) from a specific element. Defaults to the first visible `article` (feed post).
+
+```json
+{ "selector": "article" }
+```
+
+All matching posts:
+
+```json
+{ "selector": "article", "all": true }
+```
+
+Custom selector:
+
+```json
+{ "selector": ".post-content" }
+```
+
+Returns per item: `tag`, `text`, `ariaLabel`, `alt` (img alt inside), `username` (social link heuristic).
+
 `get_buttons`
 
 ```json
@@ -184,7 +212,25 @@ Recommended when focus is uncertain:
 { "query": "Post button" }
 ```
 
-## 8. Record Tools (rrweb)
+## 8. Screenshot Tool
+
+`screenshot`
+
+Captures the visible viewport as a JPEG image. Returns a base64 data URL.
+
+```json
+{}
+```
+
+With custom quality (0–100, default 80):
+
+```json
+{ "quality": 95 }
+```
+
+Returns: `{ dataUrl, width, height, devicePixelRatio }`
+
+## 10. Record Tools (rrweb)
 
 `record_start`
 

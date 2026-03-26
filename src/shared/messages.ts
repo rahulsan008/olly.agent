@@ -5,6 +5,7 @@ export type SidebarToBackground =
   | { type: 'RUN_TASK'; task: string }
   | { type: 'RUN_TEMPLATE'; platform: string; action: string; count: number; commentText: string }
   | { type: 'RUN_TOOL_TEST'; tool: string; args: Record<string, unknown> }
+  | { type: 'CAPTURE_SCREENSHOT'; quality?: number }
   | { type: 'APPROVE_PLAN' }
   | { type: 'CANCEL_PLAN' }
   | { type: 'STOP_TASK' }

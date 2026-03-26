@@ -12,6 +12,7 @@ import * as findButton from './find_button/index';
 import * as findInput from './find_input/index';
 
 import * as getPageText from './get/page_text';
+import * as getElementText from './get/element_text';
 import * as getButtons from './get/buttons';
 import * as getInputs from './get/inputs';
 import * as getLinks from './get/links';
@@ -34,6 +35,8 @@ import * as recordStart from './record/start';
 import * as recordStop from './record/stop';
 import * as recordReplay from './record/replay';
 
+import * as screenshot from './screenshot/index';
+
 export const toolRegistry: Record<string, ToolRunner> = {
   click: click.run,
   type: typeTool.run,
@@ -47,6 +50,7 @@ export const toolRegistry: Record<string, ToolRunner> = {
   find_input: findInput.run,
 
   get_page_text: getPageText.run,
+  get_element_text: getElementText.run,
   get_buttons: getButtons.run,
   get_inputs: getInputs.run,
   get_links: getLinks.run,
@@ -67,5 +71,7 @@ export const toolRegistry: Record<string, ToolRunner> = {
 
   record_start: recordStart.run,
   record_stop: recordStop.run,
-  record_replay: recordReplay.run
+  record_replay: recordReplay.run,
+
+  screenshot: screenshot.run,
 };

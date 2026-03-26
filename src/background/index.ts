@@ -18,20 +18,17 @@ async function sendToolTestMessage(tabId: number, tool: string, args: Record<str
 
   try {
     return await chrome.tabs.sendMessage(tabId, payload) as ToolResult;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const missingReceiver = message.includes('Receiving end does not exist');
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!msg.includes('Receiving end does not exist')) throw err;
 
-    if (!missingReceiver) {
-      throw error;
-    }
+    // Content script not yet injected — find the compiled path from the built manifest
+    const manifest = chrome.runtime.getManifest();
+    const contentScriptFile = manifest.content_scripts?.[0]?.js?.[0];
+    if (!contentScriptFile) throw new Error('Content script path not found in manifest');
 
-    // Retry once after explicitly injecting content script on active tab.
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: ['src/content/index.ts']
-    });
-    await new Promise((resolve) => setTimeout(resolve, 80));
+    await chrome.scripting.executeScript({ target: { tabId }, files: [contentScriptFile] });
+    await new Promise(r => setTimeout(r, 150));
 
     return await chrome.tabs.sendMessage(tabId, payload) as ToolResult;
   }
@@ -201,6 +198,21 @@ chrome.runtime.onMessage.addListener(
             });
           }
         })();
+        return true;
+      }
+
+      case 'CAPTURE_SCREENSHOT': {
+        chrome.tabs.query({ active: true, lastFocusedWindow: true }, ([tab]) => {
+          if (!tab?.id) { sendResponse({ ok: false, error: 'No active tab' }); return; }
+          const quality = (message as { quality?: number }).quality ?? 80;
+          chrome.tabs.captureVisibleTab(tab.windowId, { format: 'jpeg', quality }, dataUrl => {
+            if (chrome.runtime.lastError) {
+              sendResponse({ ok: false, error: chrome.runtime.lastError.message });
+            } else {
+              sendResponse({ ok: true, dataUrl });
+            }
+          });
+        });
         return true;
       }
 
