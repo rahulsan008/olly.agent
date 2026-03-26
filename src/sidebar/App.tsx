@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useStore } from './store';
 import { ChatWindow } from './components/ChatWindow';
 import { TemplatePanel } from './components/TemplatePanel';
+import { ToolTesterPanel } from './components/ToolTesterPanel';
 import { Settings } from './components/Settings';
 import type { BackgroundToSidebar } from '../shared/messages';
 
@@ -90,7 +91,7 @@ export function App() {
     );
   }
 
-  const tabBtn = (tab: 'agent' | 'automate', label: string) => (
+  const tabBtn = (tab: 'agent' | 'automate' | 'tools', label: string) => (
     <button
       onClick={() => setActiveTab(tab)}
       style={{
@@ -132,6 +133,9 @@ export function App() {
           {activeTab === 'automate' && (
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Automate</span>
           )}
+          {activeTab === 'tools' && (
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Tool Tester</span>
+          )}
           <div style={{ display: 'flex', gap: 6 }}>
             {activeTab === 'agent' && (
               <button onClick={clearChat} style={{
@@ -152,11 +156,14 @@ export function App() {
         <div style={{ display: 'flex', gap: 4, padding: '0 0 8px' }}>
           {tabBtn('agent', '🤖 Agent')}
           {tabBtn('automate', '⚡ Automate')}
+          {tabBtn('tools', '🧪 Tools')}
         </div>
       </header>
 
       <main style={{ flex: 1, overflow: 'hidden' }}>
-        {activeTab === 'agent' ? <ChatWindow /> : <TemplatePanel />}
+        {activeTab === 'agent' && <ChatWindow />}
+        {activeTab === 'automate' && <TemplatePanel />}
+        {activeTab === 'tools' && <ToolTesterPanel />}
       </main>
     </div>
   );

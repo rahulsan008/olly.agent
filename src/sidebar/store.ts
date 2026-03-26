@@ -9,7 +9,7 @@ interface Store {
   apiKey: string | null;
   model: string;
   showSettings: boolean;
-  activeTab: 'agent' | 'automate';
+  activeTab: 'agent' | 'automate' | 'tools';
 
   addMessage(msg: Omit<ChatMessage, 'id' | 'timestamp'>): void;
   upsertToolLog(log: ToolCallLog): void;
@@ -18,7 +18,7 @@ interface Store {
   setApiKey(key: string | null): void;
   setModel(model: string): void;
   setShowSettings(show: boolean): void;
-  setActiveTab(tab: 'agent' | 'automate'): void;
+  setActiveTab(tab: 'agent' | 'automate' | 'tools'): void;
   clearChat(): void;
 }
 

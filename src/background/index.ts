@@ -2,6 +2,7 @@ import { requestPlan, runAgentLoop } from './agent';
 import { runTemplate } from './template-runner';
 import { TEMPLATES } from './templates';
 import type { BackgroundToSidebar, SidebarToBackground } from '../shared/messages';
+import type { ToolResult } from '../agent';
 
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -147,6 +148,35 @@ chrome.runtime.onMessage.addListener(
         })();
         sendResponse({ ok: true });
         break;
+      }
+
+      case 'RUN_TOOL_TEST': {
+        (async () => {
+          const [tab] = await new Promise<chrome.tabs.Tab[]>(resolve =>
+            chrome.tabs.query({ active: true, lastFocusedWindow: true }, resolve)
+          );
+
+          if (!tab?.id) {
+            sendResponse({ ok: false, error: 'No active tab found.' });
+            return;
+          }
+
+          try {
+            const result = await chrome.tabs.sendMessage(tab.id, {
+              type: 'RUN_AGENT_TOOL',
+              tool: message.tool,
+              args: message.args ?? {}
+            }) as ToolResult;
+
+            sendResponse({ ok: true, result });
+          } catch (error) {
+            sendResponse({
+              ok: false,
+              error: error instanceof Error ? error.message : 'Tool execution failed'
+            });
+          }
+        })();
+        return true;
       }
 
       case 'APPROVE_PLAN': {

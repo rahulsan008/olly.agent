@@ -2,6 +2,7 @@ import { getPageSnapshot } from './dom-reader';
 import { clickElement, typeText, scrollPage, extractData, waitForElement, pressKey, clickAtCoordinates, submitComment } from './action-executor';
 import { highlightElement } from './highlighter';
 import type { BackgroundToContent } from '../shared/messages';
+import { browserAgent } from '../agent';
 
 chrome.runtime.onMessage.addListener(
   (message: BackgroundToContent, _sender, sendResponse) => {
@@ -46,6 +47,10 @@ chrome.runtime.onMessage.addListener(
 
         case 'SUBMIT_COMMENT':
           sendResponse(await submitComment());
+          break;
+
+        case 'RUN_AGENT_TOOL':
+          sendResponse(await browserAgent.runTool({ tool: message.tool, args: message.args ?? {} }));
           break;
 
         default:

@@ -4,6 +4,7 @@ import type { PageSnapshot, ToolCallLog, Plan } from './types';
 export type SidebarToBackground =
   | { type: 'RUN_TASK'; task: string }
   | { type: 'RUN_TEMPLATE'; platform: string; action: string; count: number; commentText: string }
+  | { type: 'RUN_TOOL_TEST'; tool: string; args: Record<string, unknown> }
   | { type: 'APPROVE_PLAN' }
   | { type: 'CANCEL_PLAN' }
   | { type: 'STOP_TASK' }
@@ -35,7 +36,8 @@ export type BackgroundToContent =
   | { type: 'WAIT_FOR_ELEMENT'; selector: string; timeout?: number }
   | { type: 'PRESS_KEY'; key: string }
   | { type: 'CLICK_AT_COORDINATES'; x: number; y: number }
-  | { type: 'SUBMIT_COMMENT' };
+  | { type: 'SUBMIT_COMMENT' }
+  | { type: 'RUN_AGENT_TOOL'; tool: string; args: Record<string, unknown> };
 
 export interface ContentActionResult {
   success: boolean;
