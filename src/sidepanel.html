@@ -1,0 +1,61 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>AI Browser Agent</title>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header id="chatHeader" class="topbar hidden">
+        <select id="modelSelect" class="model-select">
+          <option value="gpt-5.1">gpt-5.1</option>
+          <option value="gpt-5.1-mini">gpt-5.1-mini</option>
+          <option value="gpt-4o-mini">gpt-4o-mini</option>
+        </select>
+        <div class="topbar-actions">
+          <button id="newChatBtn" class="ghost-btn" type="button">New Chat</button>
+          <button id="changeKeyBtn" class="ghost-btn" type="button">API Key</button>
+        </div>
+      </header>
+
+      <section id="keySetup" class="screen key-setup">
+        <div class="panel">
+          <h1>Connect OpenAI</h1>
+          <p>Enter your OpenAI API key to start chatting.</p>
+          <form id="apiKeyForm" class="stack">
+            <input id="apiKeyInput" class="text-input" type="password" placeholder="sk-..." autocomplete="off" required>
+            <button id="saveKeyBtn" class="primary-btn" type="submit">Save API Key</button>
+          </form>
+          <p class="hint">Key is stored in this extension via `chrome.storage.local`.</p>
+          <p id="keyError" class="error hidden"></p>
+        </div>
+      </section>
+
+      <section id="chatScreen" class="screen chat hidden">
+        <div id="messages" class="messages"></div>
+        <section id="planReview" class="plan-review hidden">
+          <h2 class="plan-title">Plan Ready</h2>
+          <p id="planSummary" class="plan-summary"></p>
+          <ol id="planSteps" class="plan-steps"></ol>
+          <div id="planSites" class="plan-sites"></div>
+          <div class="plan-actions">
+            <button id="approvePlanBtn" class="primary-btn" type="button">Approve Plan</button>
+            <button id="cancelPlanBtn" class="ghost-btn" type="button">Cancel</button>
+          </div>
+        </section>
+        <form id="chatForm" class="composer">
+          <textarea id="promptInput" class="composer-input" placeholder="How can I help you today?" rows="2"></textarea>
+          <div class="composer-row">
+            <span class="composer-hint">Ask before acting</span>
+            <div class="composer-buttons">
+              <button id="stopBtn" class="stop-btn" type="button" disabled>Stop</button>
+              <button id="sendBtn" class="send-btn" type="submit">Send</button>
+            </div>
+          </div>
+          <p id="chatError" class="error hidden"></p>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>

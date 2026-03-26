@@ -23,11 +23,13 @@ var options = {
   entry: {
     popup: path.join(__dirname, "src", "js", "popup.js"),
     options: path.join(__dirname, "src", "js", "options.js"),
+    sidepanel: path.join(__dirname, "src", "js", "sidepanel.js"),
     background: path.join(__dirname, "src", "js", "background.js")
   },
   output: {
     path: path.join(__dirname, "build"),
-    filename: "[name].bundle.js"
+    filename: "[name].bundle.js",
+    hashFunction: "sha256"
   },
   module: {
     rules: [
@@ -80,6 +82,11 @@ var options = {
       chunks: ["options"]
     }),
     new HtmlWebpackPlugin({
+      template: path.join(__dirname, "src", "sidepanel.html"),
+      filename: "sidepanel.html",
+      chunks: ["sidepanel"]
+    }),
+    new HtmlWebpackPlugin({
       template: path.join(__dirname, "src", "background.html"),
       filename: "background.html",
       chunks: ["background"]
@@ -89,7 +96,7 @@ var options = {
 };
 
 if (env.NODE_ENV === "development") {
-  options.devtool = "cheap-module-eval-source-map";
+  options.devtool = "cheap-module-source-map";
 }
 
 module.exports = options;
