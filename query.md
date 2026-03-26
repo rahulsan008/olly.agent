@@ -58,6 +58,12 @@ Element scroll:
 { "key": "Enter" }
 ```
 
+Recommended when focus is uncertain:
+
+```json
+{ "query": "search", "key": "Enter" }
+```
+
 ## 2. Find Tools
 
 `find`

@@ -13,6 +13,30 @@ let planApprovalResolver: ((approved: boolean) => void) | null = null;
 
 const DEFAULT_MODEL = 'gpt-5.1';
 
+async function sendToolTestMessage(tabId: number, tool: string, args: Record<string, unknown>): Promise<ToolResult> {
+  const payload = { type: 'RUN_AGENT_TOOL' as const, tool, args };
+
+  try {
+    return await chrome.tabs.sendMessage(tabId, payload) as ToolResult;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const missingReceiver = message.includes('Receiving end does not exist');
+
+    if (!missingReceiver) {
+      throw error;
+    }
+
+    // Retry once after explicitly injecting content script on active tab.
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ['src/content/index.ts']
+    });
+    await new Promise((resolve) => setTimeout(resolve, 80));
+
+    return await chrome.tabs.sendMessage(tabId, payload) as ToolResult;
+  }
+}
+
 // ── Side panel ───────────────────────────────────────────────────────────────
 
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
@@ -162,17 +186,18 @@ chrome.runtime.onMessage.addListener(
           }
 
           try {
-            const result = await chrome.tabs.sendMessage(tab.id, {
-              type: 'RUN_AGENT_TOOL',
-              tool: message.tool,
-              args: message.args ?? {}
-            }) as ToolResult;
+            const result = await sendToolTestMessage(tab.id, message.tool, message.args ?? {});
 
             sendResponse({ ok: true, result });
           } catch (error) {
+            const tabUrl = tab.url ?? '';
+            const isRestricted = tabUrl.startsWith('chrome://') || tabUrl.startsWith('chrome-extension://') || tabUrl.startsWith('edge://');
+
             sendResponse({
               ok: false,
-              error: error instanceof Error ? error.message : 'Tool execution failed'
+              error: isRestricted
+                ? `Tool execution is not allowed on this page: ${tabUrl}`
+                : (error instanceof Error ? error.message : 'Tool execution failed')
             });
           }
         })();
