@@ -4,6 +4,8 @@ node_modules/
 # Build output
 /dist
 build/
+generated/
+public/content.js
 
 # Secrets / local config
 secrets.*.js

@@ -2,21 +2,34 @@ import type { PageSnapshot, ToolCallLog, Plan } from './types';
 
 // Sidebar → Background
 export type SidebarToBackground =
-  | { type: 'RUN_TASK'; task: string }
+  | { type: 'RUN_TASK'; task: string; firstMessage?: boolean }
   | { type: 'RUN_TEMPLATE'; platform: string; action: string; count: number; commentText: string }
   | { type: 'RUN_TOOL_TEST'; tool: string; args: Record<string, unknown> }
   | { type: 'CAPTURE_SCREENSHOT'; quality?: number }
+  | { type: 'GET_COORDINATES'; description: string; screenshotDataUrl: string }
   | { type: 'APPROVE_PLAN' }
   | { type: 'CANCEL_PLAN' }
   | { type: 'STOP_TASK' }
   | { type: 'SAVE_API_KEY'; apiKey: string }
   | { type: 'GET_API_KEY' }
   | { type: 'SAVE_MODEL'; model: string }
-  | { type: 'GET_MODEL' };
+  | { type: 'GET_MODEL' }
+  | {
+      type: 'GET_NEW_PLAN';
+      goal: string;
+      imageDataUrl?: string | null;
+      trace?: unknown[];
+      context?: Record<string, unknown>;
+      completed_tasks?: string[];
+      failed_tasks?: string[];
+      understand_prev_screen?: string;
+    }
+  | { type: 'RUN_LLM_TOOL'; llmTool: string; args: Record<string, unknown> };
 
 // Background → Sidebar (via long-lived port)
 export type BackgroundToSidebar =
   | { type: 'PLAN_READY'; plan: Plan }
+  | { type: 'AGENT_EVENT'; event: 'plan_generated' | 'step_started' | 'step_success' | 'step_failed' | 'task_complete'; payload?: Record<string, unknown> }
   | { type: 'AGENT_MESSAGE'; content: string; isComplete: boolean }
   | { type: 'TOOL_CALLED'; log: ToolCallLog }
   | { type: 'TASK_COMPLETE'; summary: string }
@@ -28,6 +41,7 @@ export type BackgroundToSidebar =
 
 // Background → Content Script
 export type BackgroundToContent =
+  | { type: 'PING' }
   | { type: 'GET_PAGE_CONTENT' }
   | { type: 'CLICK_ELEMENT'; selector: string }
   | { type: 'TYPE_TEXT'; selector: string; text: string }

@@ -1,4 +1,19 @@
-import { addStep, clearTrace, getTrace, type CompactTraceEntry } from './execution_trace';
+import {
+  addRecoveryAttempt,
+  addStep,
+  beginStep,
+  clearTrace,
+  completeStep,
+  detectLoopRisk,
+  getTrace,
+  getTraceDetailed,
+  getTraceState,
+  markLoopDetected,
+  markStepStuck,
+  startTrace,
+  type CompactTraceEntry,
+  type DetailedTraceStep
+} from './execution_trace';
 import {
   clearShortTermMemory,
   getShortTermMemory,
@@ -31,8 +46,21 @@ function asQuery(value: unknown): string {
 }
 
 // 1) Compact Execution Trace API
-export { addStep, getTrace, clearTrace };
-export type { CompactTraceEntry };
+export {
+  addStep,
+  beginStep,
+  completeStep,
+  markStepStuck,
+  addRecoveryAttempt,
+  detectLoopRisk,
+  markLoopDetected,
+  startTrace,
+  getTrace,
+  getTraceDetailed,
+  getTraceState,
+  clearTrace
+};
+export type { CompactTraceEntry, DetailedTraceStep };
 
 // 2) Short-term Memory API
 export function updateShortTermMemory(patch: Partial<ShortTermMemory>): void {

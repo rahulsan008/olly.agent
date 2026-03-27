@@ -1,5 +1,5 @@
 import type { ToolResult } from '../../core/types';
-import { extractElementSummary, resolveElement } from '../../utils/dom';
+import { extractElementSummary, resolveElement, selectorForElement } from '../../utils/dom';
 
 type FindByTextArgs = {
   query: string;
@@ -17,5 +17,11 @@ export async function run(args: FindByTextArgs): Promise<ToolResult> {
 
   if (!element) return { success: false, error: `No element found for text query "${args.query}"` };
 
-  return { success: true, data: { summary: extractElementSummary(element) } };
+  return {
+    success: true,
+    data: {
+      selector: selectorForElement(element),
+      summary: extractElementSummary(element)
+    }
+  };
 }

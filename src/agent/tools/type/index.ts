@@ -1,5 +1,5 @@
 import type { ToolResult } from '../../core/types';
-import { ensureInView, resolveElement } from '../../utils/dom';
+import { ensureInView, resolveElement, selectorForElement } from '../../utils/dom';
 
 type TypeArgs = {
   query?: string;
@@ -27,13 +27,27 @@ function setInputValue(element: HTMLInputElement | HTMLTextAreaElement, value: s
 export async function run(args: TypeArgs): Promise<ToolResult> {
   if (!args.text) return { success: false, error: 'Missing args.text' };
 
-  const element = await resolveElement({
+  let element = await resolveElement({
     query: args.query,
     selector: args.selector,
     inputOnly: true,
     retries: 10,
     retryDelayMs: 200
   });
+
+  if (!element) {
+    const active = document.activeElement as HTMLElement | null;
+    if (
+      active &&
+      (
+        active.isContentEditable ||
+        active instanceof HTMLInputElement ||
+        active instanceof HTMLTextAreaElement
+      )
+    ) {
+      element = active;
+    }
+  }
 
   if (!element) {
     return { success: false, error: `Could not find input for query="${args.query ?? ''}"` };
@@ -57,5 +71,5 @@ export async function run(args: TypeArgs): Promise<ToolResult> {
     return { success: false, error: 'Resolved element is not a typable input' };
   }
 
-  return { success: true };
+  return { success: true, data: { selector: selectorForElement(element) } };
 }

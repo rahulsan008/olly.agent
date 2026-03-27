@@ -1,4 +1,5 @@
-import { Replayer, type eventWithTime } from 'rrweb';
+import { Replayer } from 'rrweb';
+import type { eventWithTime } from '@rrweb/types';
 import type { ToolResult } from '../../core/types';
 import { recordedEvents } from './state';
 

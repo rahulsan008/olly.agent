@@ -11,6 +11,9 @@ export async function run(): Promise<ToolResult> {
       pushEvent(event);
     }
   });
+  if (!stop) {
+    return { success: false, error: 'Recorder could not start on this page' };
+  }
 
   setStopRecorder(stop);
   return { success: true };

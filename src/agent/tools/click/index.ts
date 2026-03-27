@@ -1,5 +1,5 @@
 import type { ToolResult } from '../../core/types';
-import { ensureInView, resolveElement } from '../../utils/dom';
+import { ensureInView, resolveElement, selectorForElement } from '../../utils/dom';
 
 type ClickArgs = {
   query?: string;
@@ -36,5 +36,5 @@ export async function run(args: ClickArgs): Promise<ToolResult> {
   await new Promise((resolve) => setTimeout(resolve, 120));
   dispatchHumanClick(element as HTMLElement);
 
-  return { success: true };
+  return { success: true, data: { selector: selectorForElement(element) } };
 }

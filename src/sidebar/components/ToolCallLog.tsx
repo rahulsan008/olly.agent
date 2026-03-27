@@ -35,6 +35,17 @@ export function ToolCallLog({ logs }: { logs: ToolCallLog[] }) {
                   {log.result}
                 </p>
               )}
+              {log.debug && (
+                <pre style={{
+                  margin: '3px 0 0 12px',
+                  color: '#94a3b8',
+                  fontSize: 10,
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word'
+                }}>
+                  {JSON.stringify(log.debug, null, 2)}
+                </pre>
+              )}
             </li>
           ))}
         </ul>

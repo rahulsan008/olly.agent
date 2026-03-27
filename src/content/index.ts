@@ -1,13 +1,17 @@
 import { getPageSnapshot } from './dom-reader';
 import { clickElement, typeText, scrollPage, extractData, waitForElement, pressKey, clickAtCoordinates, submitComment } from './action-executor';
 import { highlightElement } from './highlighter';
-import type { BackgroundToContent } from '../shared/messages';
 import { browserAgent } from '../agent';
+import type { BackgroundToContent } from '../shared/messages';
 
 chrome.runtime.onMessage.addListener(
   (message: BackgroundToContent, _sender, sendResponse) => {
     (async () => {
       switch (message.type) {
+        case 'PING':
+          sendResponse({ success: true, ready: true, url: window.location.href, title: document.title });
+          break;
+
         case 'GET_PAGE_CONTENT':
           sendResponse({ snapshot: getPageSnapshot() });
           break;

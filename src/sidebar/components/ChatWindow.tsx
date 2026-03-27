@@ -31,15 +31,22 @@ export function ChatWindow() {
   const send = () => {
     const task = input.trim();
     if (!task || agentState.isRunning) return;
+    const isFirstMessage = messages.length === 0;
     setInput('');
     addMessage({ role: 'user', content: task });
     setAgentState({ isRunning: true, currentTask: task, stepCount: 0, error: null, phase: 'planning' });
-    chrome.runtime.sendMessage({ type: 'RUN_TASK', task });
+    chrome.runtime.sendMessage({ type: 'RUN_TASK', task, firstMessage: isFirstMessage });
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
 
   const approvePlan = () => {
-    chrome.runtime.sendMessage({ type: 'APPROVE_PLAN' });
+    chrome.runtime.sendMessage({ type: 'APPROVE_PLAN' }, () => {
+      if (chrome.runtime.lastError) {
+        setAgentState({ error: chrome.runtime.lastError.message, isRunning: false, phase: 'idle' });
+        return;
+      }
+      setAgentState({ isRunning: true, phase: 'executing', stepCount: 0, error: null });
+    });
     setPendingPlan(null);
   };
 

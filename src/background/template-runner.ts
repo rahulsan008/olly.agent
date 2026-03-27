@@ -1,6 +1,7 @@
 import type { TemplateStep } from './templates';
 import type { BackgroundToSidebar } from '../shared/messages';
 import type { ToolCallLog } from '../shared/types';
+import { recordLlmUsage } from './core/llm_usage';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -33,41 +34,75 @@ async function generateComment(
   apiKey: string,
   model: string
 ): Promise<string> {
-  // Grab visible text from the page to use as context
-  const res = await sendToContent<{ snapshot?: { text?: string } }>(
-    tabId, { type: 'GET_PAGE_CONTENT' }
-  ).catch(() => null);
+  try {
+    // Grab visible text from the page to use as context
+    const res = await sendToContent<{ snapshot?: { text?: string } }>(
+      tabId, { type: 'GET_PAGE_CONTENT' }
+    ).catch(() => null);
 
-  const pageText = res?.snapshot?.text ?? '';
+    const pageText = res?.snapshot?.text ?? '';
 
-  // Extract a reasonable chunk — first 800 chars is enough for a post caption
-  const context = pageText.slice(0, 800).trim() || 'a social media post';
+    // Extract a reasonable chunk — first 800 chars is enough for a post caption
+    const context = pageText.slice(0, 800).trim() || 'a social media post';
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        max_completion_tokens: 60,
+        messages: [
+          {
+            role: 'system',
+            content: 'You write short, genuine, friendly Instagram comments (1–2 sentences, no hashtags, no emojis unless fitting). Reply with ONLY the comment text, nothing else.',
+          },
+          {
+            role: 'user',
+            content: `Write a comment for this post:\n\n${context}`,
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      await recordLlmUsage({
+        source: 'template_runner.generate_comment',
+        model,
+        status: 'error',
+        error: `OpenAI error: ${response.status}`
+      });
+      throw new Error(`OpenAI error: ${response.status}`);
+    }
+    const data = await response.json() as {
+      choices: { message: { content: string } }[];
+      usage?: {
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        total_tokens?: number;
+        prompt_tokens_details?: { cached_tokens?: number };
+      };
+    };
+    await recordLlmUsage({
+      source: 'template_runner.generate_comment',
       model,
-      max_tokens: 60,
-      messages: [
-        {
-          role: 'system',
-          content: 'You write short, genuine, friendly Instagram comments (1–2 sentences, no hashtags, no emojis unless fitting). Reply with ONLY the comment text, nothing else.',
-        },
-        {
-          role: 'user',
-          content: `Write a comment for this post:\n\n${context}`,
-        },
-      ],
-    }),
-  });
-
-  if (!response.ok) throw new Error(`OpenAI error: ${response.status}`);
-  const data = await response.json() as { choices: { message: { content: string } }[] };
-  return data.choices[0]?.message?.content?.trim() ?? 'Great post!';
+      usage: data.usage,
+      status: 'success'
+    });
+    return data.choices[0]?.message?.content?.trim() ?? 'Great post!';
+  } catch (error) {
+    if (!(error instanceof Error && error.message.startsWith('OpenAI error:'))) {
+      await recordLlmUsage({
+        source: 'template_runner.generate_comment',
+        model,
+        status: 'error',
+        error: error instanceof Error ? error.message : 'generateComment failed'
+      });
+    }
+    throw error;
+  }
 }
 
 // ── Step executor ─────────────────────────────────────────────────────────────

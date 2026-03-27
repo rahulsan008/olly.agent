@@ -2,11 +2,12 @@ import React, { useEffect } from 'react';
 import { useStore } from './store';
 import { ChatWindow } from './components/ChatWindow';
 import { TemplatePanel } from './components/TemplatePanel';
+import { LlmUsagePanel } from './components/LlmUsagePanel';
 import { ToolTesterPanel } from './components/ToolTesterPanel';
 import { Settings } from './components/Settings';
 import type { BackgroundToSidebar } from '../shared/messages';
 
-const MODELS = ['gpt-5.1', 'gpt-5.1-mini', 'gpt-4o-mini'];
+const MODELS = ['gpt-5.4', 'gpt-5.1', 'gpt-5.1-mini', 'gpt-4o-mini'];
 
 export function App() {
   const {
@@ -25,8 +26,14 @@ export function App() {
     const handleMessage = (msg: BackgroundToSidebar) => {
       switch (msg.type) {
         case 'PLAN_READY':
+          if (useStore.getState().agentState.phase === 'executing') break;
           setPendingPlan(msg.plan);
-          setAgentState({ phase: 'executing' });
+          setAgentState({ phase: 'planning' });
+          break;
+        case 'AGENT_EVENT':
+          if (msg.event === 'plan_generated') {
+            addMessage({ role: 'assistant', content: 'Plan generated. Ready to execute.' });
+          }
           break;
         case 'AGENT_MESSAGE':
           addMessage({ role: 'assistant', content: msg.content });
@@ -91,7 +98,7 @@ export function App() {
     );
   }
 
-  const tabBtn = (tab: 'agent' | 'automate' | 'tools', label: string) => (
+  const tabBtn = (tab: 'agent' | 'automate' | 'tools' | 'llm', label: string) => (
     <button
       onClick={() => setActiveTab(tab)}
       style={{
@@ -136,6 +143,9 @@ export function App() {
           {activeTab === 'tools' && (
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Tool Tester</span>
           )}
+          {activeTab === 'llm' && (
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>LLM Usage</span>
+          )}
           <div style={{ display: 'flex', gap: 6 }}>
             {activeTab === 'agent' && (
               <button onClick={clearChat} style={{
@@ -157,6 +167,7 @@ export function App() {
           {tabBtn('agent', '🤖 Agent')}
           {tabBtn('automate', '⚡ Automate')}
           {tabBtn('tools', '🧪 Tools')}
+          {tabBtn('llm', '🧠 LLM')}
         </div>
       </header>
 
@@ -164,6 +175,7 @@ export function App() {
         {activeTab === 'agent' && <ChatWindow />}
         {activeTab === 'automate' && <TemplatePanel />}
         {activeTab === 'tools' && <ToolTesterPanel />}
+        {activeTab === 'llm' && <LlmUsagePanel />}
       </main>
     </div>
   );

@@ -1,0 +1,521 @@
+{
+    "model": "gpt-5.1",
+    "messages": [
+        {
+            "role": "system",
+            "content": "Role: You are a browser automation planner.\nSystem context:\n- You are generating guidance for a browser automation agent.\n- Available tools: click, type, hover, scroll, press_key, find, find_by_text, find_button, find_input, extract, get_page_text, get_element_text, get_buttons, get_inputs, get_links, get_visible_elements, wait_for_element, wait_for_text, go_to_url, go_back, refresh, copy, paste, get_selected, generate_selector, record_start, record_stop, record_replay, screenshot, get_new_plan, understand_screen, classify_page_state, extract_structured_data, rank_candidates, generate_search_query, rewrite_action_query, detect_blocker, compose_text, verify_task_completion, strategy_replan, start_trace, get_trace, clear_trace, visual_click.\n- Use ONLY tool names from this list. Do not invent tool names.\n- Use only current evidence from context, trace, and screenshot.\n- The runtime has compact execution trace memory and selector memory per site.\n- Retry logic already handles most transient failures without calling an LLM.\n- Target behavior is low-cost execution: max 1-2 LLM calls per task.\n- Never ask for long chain-of-thought; return only the required structured output.\n- Never suggest reading/accessing cookies, sessions, tokens, or credentials.\n- Never suggest login/authentication actions; user must do login manually.\n- Always prioritize progress: pick the next action most likely to unblock the task.\n- If context is ambiguous, choose robust actions in this order: find -> click/type -> wait -> scroll -> extract.\n- Prefer semantic queries over fragile selectors and avoid actions already shown as failed.\n\nVALID TOOLS AND REQUIRED ARGS (use ONLY these):\n  Action:\n    click           { query }\n    type            { query, text }\n    hover           { query }\n    scroll          { direction, amount }  OR  { query, direction, amount }\n    press_key       { key }  OR  { query, key }\n\n  Find:\n    find            { query }\n    find_by_text    { query }\n    find_button     { query }\n    find_input      { query }\n\n  Get:\n    get_page_text   {}  OR  { includeTitle }\n    get_element_text { selector }  OR  { selector, all }\n    get_buttons     {}\n    get_inputs      {}\n    get_links       {}\n    get_visible_elements {}\n\n  Wait:\n    wait_for_element { query, timeoutMs }\n    wait_for_text    { text, timeoutMs }\n\n  Navigation:\n    go_to_url       { url }\n    go_back         {}\n    refresh         {}\n\n  Clipboard:\n    copy            { text }\n    paste           {}\n    get_selected    {}\n\n  Selector:\n    generate_selector { query }\n\n  Screenshot:\n    screenshot      {}  OR  { quality }\n\n  LLM helpers (use sparingly):\n    understand_screen          {}\n    classify_page_state        {}\n    extract_structured_data    { schema }\n    rank_candidates            { query, candidates }\n    generate_search_query      { goal }\n    rewrite_action_query       { query }\n    detect_blocker             {}\n    compose_text               { goal }\n    verify_task_completion     { goal }\n    strategy_replan            { goal }\n    get_new_plan               { goal }\n\n  Record:\n    record_start    {}\n    record_stop     {}\n    record_replay   {}\n\n  Trace:\n    start_trace     { goal }\n    get_trace       {}\n    clear_trace     {}\n\nNEVER USE: read_page_content, click_at_coordinates, sort_by, popular_tab, or any tool not listed above.\n\nMULTI-TASK DECOMPOSITION RULES:\n1. Split multi-goals into sequential sub-tasks.\n2. Complete each sub-task fully before next.\n3. Maintain order: navigate → search → find → interact.\n4. Start each new page with go_to_url.\n5. CRITICAL: Plans with LESS THAN 3 STEPS are INVALID.\n   Expand until ≥3 meaningful actions.\n   Navigation-only plans are INVALID.\n   MUST include navigation → discovery → interaction.\n   Do NOT delegate thinking to executor.\n\nTask input:\nGoal: Go to YouTube and subscribe to MrBeast\nTrace: []\nContext: {\n  \"currentPage\": {\n    \"url\": \"https://railway.com/project/e7af6b29-8a03-4f62-b53c-77d443db4f7f/service/5b0ab164-0b8b-4258-9ff0-a7b76cd2cd02/variables?environmentId=1333f1b6-c254-44d2-8503-f7d3f16fa99f\",\n    \"title\": \"CREATOR_DB\"\n  },\n  \"pageSnapshot\": \"URL: https://railway.com/project/e7af6b29-8a03-4f62-b53c-77d443db4f7f/service/5b0ab164-0b8b-4258-9ff0-a7b76cd2cd02/variables?environmentId=1333f1b6-c254-44d2-8503-f7d3f16fa99f\\nTitle: CREATOR_DB\\n\\nPage text:\\nINFLOQ production 2 Agent infloq.space www.infloq.space Online infloq.store infloq.store Sleeping INFLOQ_INFLUENCER_PROD creators.infloq.com Online infloq.us www.infloq.us Sleeping INFLOQ-COMPRESSOR-SERVICE-PY infloq-compressor-service-py-production.up.railway.app Online infloq link www.infloq.link Online Infloq-docs docs.infloq.com Online INFLOQ_DEMO_NEW demo.infloq.com Sleeping · Needs approval INFLOQ_DEMO_SERVER Sleeping WEBSITE_SUBMITTER Last run succeeded website_submitter-volume Next in 17 hours Redis Online redis-volume INFLOQ_LANDING_DB Online postgres-volume-8hvo INFLOQ COMMUNITY community.infloq.com Online 1 PROD_DB Service is offline postgres-jcqj-volume INDEX_BUDDY Sleeping INFLOQ_HEALTH_CHECKER Last run succeeded Next in 14 minutes SUPPORT_CENTER aisolo.infloq.com Sleeping status.infloq.com status.infloq.com Sleeping CREATOR_DB Online postgres-volume-fhT9 INFLOQ_PROD_SERVER Service is offline INFLOQ-AGENCY agency.infloq.com Online INFLOQ_DEMO_DB Online postgres-volume INFLOQ_REPORTING reporting.infloq.com Online INFLOQ_PROD Service is offline infloq.site infloq.site Online infloq.online www.infloq.online Sleeping Infloq-newsletter newsletter.infloq.com Online INFLOQ_LANDING infloq.com Online 4/4 replicas active CREATOR_DB Deployments Database Backups Variables Metrics Settings 13 Service Variables Shared Variable Raw Editor New Variable Keep variables in sync across services Create a shared variable in Project Settings or promote an existing service variable to a shared variable via the ⋮ icon. Configure Shared Variables View Docs Trying to connect this database to a service? Add a Variable Reference DATABASE_PUBLIC_URL ******* DATABASE_URL ******* PGDATA ******* PGDATABASE ******* PGHOST ******* PGPASSWORD ******* PGPORT ******* PGUSER ******* POSTGRES_DB ******* POSTGRES_PASSWORD ******* POSTGRES_USER ******* RAILWAY_DEPLOYMENT_DRAINING_SECONDS ******* SSL_CERT_DAYS ******* 13 variables added by Railway Canvas loading slowly The canvas is taking longer than expected to load. Please wait or try refreshing the page.\\n\\nVisible interactive elements:\\n  [button] #radix-:r4b: — INFLOQ\\n  [button] #radix-:r4e: — production\\n  [button] div > div.relative.h-dvh:nth-of-type(1) > div.absolute.inset-0 > div.relative.z-10:nth-of-type(2) > header.py-3.flex > nav.ml-auto.flex > div.flex.items-center:nth-of-type(2) > div.flex.items-center > div.hidden:nth-of-type(1) > button.grid.items-center\\n  [button] #radix-:rh: — 2\\n  [button] div > div.relative.h-dvh:nth-of-type(1) > div.absolute.inset-0 > div.relative.z-10:nth-of-type(2) > header.py-3.flex > nav.ml-auto.flex > div.flex.items-center:nth-of-type(2) > div.flex.items-center > button.hidden.items-center:nth-of-type(2) — Agent\\n  [button] #radix-:r4m:\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > svg.react-flow__edges.react-flow__container > g > g.react-flow__edge.react-flow__edge-reference:nth-of-type(2)\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > svg.react-flow__edges.react-flow__container > g > g.react-flow__edge.react-flow__edge-reference:nth-of-type(3)\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > svg.react-flow__edges.react-flow__container > g > g.react-flow__edge.react-flow__edge-reference:nth-of-type(5)\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > svg.react-flow__edges.react-flow__container > g > g.react-flow__edge.react-flow__edge-reference:nth-of-type(7)\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > svg.react-flow__edges.react-flow__container > g > g.react-flow__edge.react-flow__edge-reference:nth-of-type(10)\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > svg.react-flow__edges.react-flow__container > g > g.react-flow__edge.react-flow__edge-reference:nth-of-type(14)\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > svg.react-flow__edges.react-flow__container > g > g.react-flow__edge.react-flow__edge-reference:nth-of-type(17)\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(1) — infloq.spacewww.infloq.spaceOnline\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(2) — infloq.storeinfloq.storeSleeping\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(3) — INFLOQ_INFLUENCER_PRODcreators.infloq.comOnline\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(4) — infloq.uswww.infloq.usSleeping\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(5) — INFLOQ-COMPRESSOR-SERVICE-PYinfloq-compressor-service-py-production.up.railway.a…\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(6) — infloq linkwww.infloq.linkOnline\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(7) — Infloq-docsdocs.infloq.comOnline\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(8) — INFLOQ_DEMO_NEWdemo.infloq.comSleeping · Needs approval\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(9) — INFLOQ_DEMO_SERVERSleeping\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(10) — WEBSITE_SUBMITTERLast run succeededwebsite_submitter-volumeNext in 17 hours\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(11) — RedisOnlineredis-volume\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(12) — INFLOQ_LANDING_DBOnlinepostgres-volume-8hvo\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(13) — INFLOQ COMMUNITYcommunity.infloq.comOnline1\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(14) — PROD_DBService is offlinepostgres-jcqj-volume\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(15) — INDEX_BUDDYSleeping\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(16) — INFLOQ_HEALTH_CHECKERLast run succeededNext in 14 minutes\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(17) — SUPPORT_CENTERaisolo.infloq.comSleeping\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(18) — status.infloq.comstatus.infloq.comSleeping\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(19) — CREATOR_DBOnlinepostgres-volume-fhT9\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(20) — INFLOQ_PROD_SERVERService is offline\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(21) — INFLOQ-AGENCYagency.infloq.comOnline\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(22) — INFLOQ_DEMO_DBOnlinepostgres-volume\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(23) — INFLOQ_REPORTINGreporting.infloq.comOnline\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(24) — INFLOQ_PRODService is offline\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(25) — infloq.siteinfloq.siteOnline\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(26) — infloq.onlinewww.infloq.onlineSleeping\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(27) — Infloq-newsletternewsletter.infloq.comOnline\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__renderer:nth-of-type(1) > div.react-flow__pane > div.react-flow__viewport.react-flow__container > div.react-flow__nodes:nth-of-type(2) > div.react-flow__node.react-flow__node-service:nth-of-type(28) — INFLOQ_LANDINGinfloq.comOnline4/4 replicas active\\n  [button] #radix-:r4s:\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__panel.toolbar-left:nth-of-type(2) > div.grid.gap-2 > div.bg-secondaryBg.border:nth-of-type(1) > button.group/button.flex:nth-of-type(1)\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__panel.toolbar-left:nth-of-type(2) > div.grid.gap-2 > div.bg-secondaryBg.border:nth-of-type(1) > button.group/button.flex:nth-of-type(2)\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__panel.toolbar-left:nth-of-type(2) > div.grid.gap-2 > div.bg-secondaryBg.border:nth-of-type(1) > button.group/button.flex:nth-of-type(3)\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__panel.toolbar-left:nth-of-type(2) > div.grid.gap-2 > div.bg-secondaryBg.border:nth-of-type(2) > button.group/button.flex:nth-of-type(1)\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.absolute.inset-0:nth-of-type(2) > div.canvas-container.flex-1:nth-of-type(3) > span.flex.flex-grow > span.flex.flex-col > div.react-flow.flex > div.react-flow__panel.toolbar-left:nth-of-type(2) > div.grid.gap-2 > div.bg-secondaryBg.border:nth-of-type(2) > button.group/button.flex:nth-of-type(2)\\n  [button] #radix-:r54:\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.metro-pane-wrapper.grid:nth-of-type(3) > div.metro-pane.top-0 > div.grid.grid-cols-[minmax(0px,_1fr)] > div.flex.flex-col:nth-of-type(1) > div.flex.space-x-4:nth-of-type(1) > div.flex.items-center:nth-of-type(1) > div.flex.space-x-4 > button.flex.items-center\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.metro-pane-wrapper.grid:nth-of-type(3) > div.metro-pane.top-0 > div.grid.grid-cols-[minmax(0px,_1fr)] > div.flex.flex-col:nth-of-type(1) > div.flex.space-x-4:nth-of-type(1) > div.flex.items-center:nth-of-type(1) > div.flex.space-x-4 > h1.text-h3.font-semibold > button.flex.items-center — CREATOR_DB\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.metro-pane-wrapper.grid:nth-of-type(3) > div.metro-pane.top-0 > div.grid.grid-cols-[minmax(0px,_1fr)] > div.metro-pane-content:nth-of-type(2) > div.h-full.px-5 > div.flex.flex-col > div.flex.flex-col:nth-of-type(1) > div.flex.items-center:nth-of-type(1) > div.flex.space-x-1:nth-of-type(2) > button.group/button.flex:nth-of-type(1) — Shared Variable\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.metro-pane-wrapper.grid:nth-of-type(3) > div.metro-pane.top-0 > div.grid.grid-cols-[minmax(0px,_1fr)] > div.metro-pane-content:nth-of-type(2) > div.h-full.px-5 > div.flex.flex-col > div.flex.flex-col:nth-of-type(1) > div.flex.items-center:nth-of-type(1) > div.flex.space-x-1:nth-of-type(2) > button.group/button.items-center:nth-of-type(2) — Raw Editor\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.metro-pane-wrapper.grid:nth-of-type(3) > div.metro-pane.top-0 > div.grid.grid-cols-[minmax(0px,_1fr)] > div.metro-pane-content:nth-of-type(2) > div.h-full.px-5 > div.flex.flex-col > div.flex.flex-col:nth-of-type(1) > div.flex.items-center:nth-of-type(1) > div.flex.space-x-1:nth-of-type(2) > button.group/button.flex:nth-of-type(3) — New Variable\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.metro-pane-wrapper.grid:nth-of-type(3) > div.metro-pane.top-0 > div.grid.grid-cols-[minmax(0px,_1fr)] > div.metro-pane-content:nth-of-type(2) > div.h-full.px-5 > div.flex.flex-col > div.flex.flex-col:nth-of-type(1) > div.flex.flex-col:nth-of-type(2) > div.pointer-events-none > div.relative.rounded-md > button.group/button.flex\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.metro-pane-wrapper.grid:nth-of-type(3) > div.metro-pane.top-0 > div.grid.grid-cols-[minmax(0px,_1fr)] > div.metro-pane-content:nth-of-type(2) > div.h-full.px-5 > div.flex.flex-col > div.flex.flex-col:nth-of-type(2) > div.grid.gap-1:nth-of-type(1) > div.relative.p-3:nth-of-type(1) > button.group/button.flex\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.metro-pane-wrapper.grid:nth-of-type(3) > div.metro-pane.top-0 > div.grid.grid-cols-[minmax(0px,_1fr)] > div.metro-pane-content:nth-of-type(2) > div.h-full.px-5 > div.flex.flex-col > div.flex.flex-col:nth-of-type(2) > div.grid.gap-1:nth-of-type(1) > div.flex.flex-col:nth-of-type(2) > div.variable-row.group > div:nth-of-type(2) > div.flex.items-center:nth-of-type(1) > div.flex.whitespace-nowrap:nth-of-type(2) > button:nth-of-type(3)\\n  [button] #stack-container-root > div.nested-canvas.h-full > div.metro-pane-wrapper.grid:nth-of-type(3) > div.metro-pane.top-0 > div.grid.grid-cols-[minmax(0px,_1fr)] > div.metro-pane-content:nth-of-type(2) > div.h-full.px-5 > div.flex.flex-col > div.flex.flex-col:nth-of-type(2) > div.grid.gap-1:nth-of-type(1) > div.flex.flex-col:nth-of-type(2) > div.variable-row.group > div:nth-of-type(2) > div.flex.items-center:nth-of-type(1) > div.flex.whitespace-nowrap:nth-of-type(2) > button:nth-of-type(3) > button.group/button.flex\\n  [button] #radix-:r5d:\\n  [button] #radix-:r5f:\\n  [button] #radix-:r5h:\\n\",\n  \"timestamp\": 1774593977645,\n  \"completedTasks\": [],\n  \"failedTasks\": [],\n  \"previousUnderstanding\": \"\"\n}\n\nInstructions:\n- Create full execution plan.\n- Each step = ONE action.\n- Use human-readable queries.\n- Include ALL required steps explicitly.\n- Do NOT stop early.\n- Planner is responsible for FULL completion.\n\nConstraints:\n- Only valid tools.\n- No duplicate actions.\n- No retry loops.\n- Missing steps = FAILED plan.\n\nOutput format:\n[\n  { \"tool\": \"...\", \"args\": {}, \"why\": \"...\" }\n]"
+        },
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Current URL: https://railway.com/project/e7af6b29-8a03-4f62-b53c-77d443db4f7f/service/5b0ab164-0b8b-4258-9ff0-a7b76cd2cd02/variables?environmentId=1333f1b6-c254-44d2-8503-f7d3f16fa99f\nCurrent Title: CREATOR_DB\nPage Snapshot (excerpt): URL: https://railway.com/project/e7af6b29-8a03-4f62-b53c-77d443db4f7f/service/5b0ab164-0b8b-4258-9ff0-a7b76cd2cd02/variables?environmentId=1333f1b6-c254-44d2-8503-f7d3f16fa99f\nTitle: CREATOR_DB\n\nPage text:\nINFLOQ production 2 Agent infloq.space www.infloq.space Online infloq.store infloq.store Sleeping INFLOQ_INFLUENCER_PROD creators.infloq.com Online infloq.us www.infloq.us Sleeping INFLOQ-COMPRESSOR-SERVICE-PY infloq-compressor-service-py-production.up.railway.app Online infloq link www.infloq.link Online Infloq-docs docs.infloq.com Online INFLOQ_DEMO_NEW demo.infloq.com Sleeping · Needs approval INFLOQ_DEMO_SERVER Sleeping WEBSITE_SUBMITTER Last run succeeded website_submitter-volume Next in 17 hours Redis Online redis-volume INFLOQ_LANDING_DB Online postgres-volume-8hvo INFLOQ COMMUNIT"
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": "data:ima"
+                    }
+                }
+            ]
+        }
+    ],
+    "tools": [
+        {
+            "type": "function",
+            "function": {
+                "name": "click",
+                "description": "Click on an element found by query selector or text",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "CSS selector or description of element to click"
+                        }
+                    },
+                    "required": [
+                        "query"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "type",
+                "description": "Type text into an input field",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "CSS selector or description of input field"
+                        },
+                        "text": {
+                            "type": "string",
+                            "description": "Text to type"
+                        }
+                    },
+                    "required": [
+                        "query",
+                        "text"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "hover",
+                "description": "Hover over an element",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "CSS selector or description of element to hover"
+                        }
+                    },
+                    "required": [
+                        "query"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "scroll",
+                "description": "Scroll the page or an element",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "direction": {
+                            "type": "string",
+                            "enum": [
+                                "up",
+                                "down",
+                                "left",
+                                "right"
+                            ],
+                            "description": "Scroll direction"
+                        },
+                        "query": {
+                            "type": "string",
+                            "description": "CSS selector of element to scroll (optional, defaults to page)"
+                        }
+                    },
+                    "required": [
+                        "direction"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "press_key",
+                "description": "Press a keyboard key",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "key": {
+                            "type": "string",
+                            "description": "Key to press (e.g., Enter, Escape, Tab)"
+                        },
+                        "query": {
+                            "type": "string",
+                            "description": "CSS selector of element to focus before pressing key (optional)"
+                        }
+                    },
+                    "required": [
+                        "key"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "find",
+                "description": "Find elements on page by selector or description",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "CSS selector or description of elements to find"
+                        }
+                    },
+                    "required": [
+                        "query"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "find_by_text",
+                "description": "Find elements containing specific text",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Text to search for in elements"
+                        }
+                    },
+                    "required": [
+                        "query"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "find_button",
+                "description": "Find buttons by text or label",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Button text or label to search for"
+                        }
+                    },
+                    "required": [
+                        "query"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "find_input",
+                "description": "Find input fields by name, placeholder, or label",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Input field name, placeholder, or label"
+                        }
+                    },
+                    "required": [
+                        "query"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "extract",
+                "description": "Extract specific data from page based on natural language query",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "What data to extract (e.g., \"product price\", \"author name\")"
+                        }
+                    },
+                    "required": [
+                        "query"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_page_text",
+                "description": "Get all visible text content from the page",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_element_text",
+                "description": "Get text content from a specific element",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "CSS selector of element to get text from"
+                        }
+                    },
+                    "required": [
+                        "query"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_buttons",
+                "description": "Get list of all clickable buttons on page",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_inputs",
+                "description": "Get list of all input fields on page",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_links",
+                "description": "Get list of all links on page",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_visible_elements",
+                "description": "Get list of all visible interactive elements",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "wait_for_element",
+                "description": "Wait for an element to appear on page",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "CSS selector or description of element to wait for"
+                        }
+                    },
+                    "required": [
+                        "query"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "wait_for_text",
+                "description": "Wait for specific text to appear on page",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "text": {
+                            "type": "string",
+                            "description": "Text to wait for"
+                        }
+                    },
+                    "required": [
+                        "text"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "go_to_url",
+                "description": "Navigate to a specific URL",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "url": {
+                            "type": "string",
+                            "description": "URL to navigate to"
+                        }
+                    },
+                    "required": [
+                        "url"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "go_back",
+                "description": "Navigate back to previous page",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "refresh",
+                "description": "Refresh the current page",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "copy",
+                "description": "Copy text to clipboard",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "text": {
+                            "type": "string",
+                            "description": "Text to copy"
+                        }
+                    },
+                    "required": [
+                        "text"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "paste",
+                "description": "Paste from clipboard into an element",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "CSS selector of element to paste into"
+                        }
+                    },
+                    "required": [
+                        "query"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_selected",
+                "description": "Get currently selected text",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "generate_selector",
+                "description": "Generate CSS selector for an element",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Description of element to generate selector for"
+                        }
+                    },
+                    "required": [
+                        "query"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "record_start",
+                "description": "Start recording user actions",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "record_stop",
+                "description": "Stop recording user actions",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "record_replay",
+                "description": "Replay previously recorded actions",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "screenshot",
+                "description": "Take a screenshot of the page",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "visual_click",
+                "description": "Click element using GPT-4o-mini vision to locate it on screen",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "description": {
+                            "type": "string",
+                            "description": "Natural language description of element to click"
+                        }
+                    },
+                    "required": [
+                        "description"
+                    ]
+                }
+            }
+        }
+    ],
+    "tool_choice": "required",
+    "max_completion_tokens": 2000
+}

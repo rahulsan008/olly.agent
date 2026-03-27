@@ -1,5 +1,5 @@
 import type { ToolResult } from '../../core/types';
-import { extractElementSummary, resolveElement } from '../../utils/dom';
+import { extractElementSummary, resolveElement, selectorForElement } from '../../utils/dom';
 
 type FindArgs = {
   query?: string;
@@ -25,6 +25,7 @@ export async function run(args: FindArgs): Promise<ToolResult> {
   return {
     success: true,
     data: {
+      selector: selectorForElement(element),
       summary: extractElementSummary(element)
     }
   };

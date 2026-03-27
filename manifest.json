@@ -15,7 +15,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["src/content/index.ts"],
+      "js": ["generated/content.js"],
       "run_at": "document_idle"
     }
   ],

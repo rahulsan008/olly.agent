@@ -4,7 +4,9 @@
   "description": "AI Browser Agent powered by OpenAI GPT-4o",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/build-content.cjs",
     "dev": "vite build --watch",
+    "prebuild": "node scripts/build-content.cjs",
     "build": "vite build"
   },
   "dependencies": {

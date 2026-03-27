@@ -9,7 +9,7 @@ interface Store {
   apiKey: string | null;
   model: string;
   showSettings: boolean;
-  activeTab: 'agent' | 'automate' | 'tools';
+  activeTab: 'agent' | 'automate' | 'tools' | 'llm';
 
   addMessage(msg: Omit<ChatMessage, 'id' | 'timestamp'>): void;
   upsertToolLog(log: ToolCallLog): void;
@@ -18,7 +18,7 @@ interface Store {
   setApiKey(key: string | null): void;
   setModel(model: string): void;
   setShowSettings(show: boolean): void;
-  setActiveTab(tab: 'agent' | 'automate' | 'tools'): void;
+  setActiveTab(tab: 'agent' | 'automate' | 'tools' | 'llm'): void;
   clearChat(): void;
 }
 
@@ -28,7 +28,7 @@ export const useStore = create<Store>(set => ({
   agentState: { isRunning: false, currentTask: null, stepCount: 0, error: null, phase: 'idle' },
   pendingPlan: null,
   apiKey: null,
-  model: 'gpt-5.1',
+  model: 'gpt-5.4',
   showSettings: false,
   activeTab: 'agent',
 

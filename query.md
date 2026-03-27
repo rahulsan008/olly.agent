@@ -256,6 +256,31 @@ Optional replay UI controls:
 { "fullscreen": false, "autoCloseMs": 8000 }
 ```
 
+## 11. Trace Tools
+
+`start_trace`
+
+```json
+{ "goal": "submit comment flow" }
+```
+
+`get_trace`
+
+```json
+{}
+```
+
+Returns:
+- `compact`: compact trace entries
+- `detailed`: running/completed/stuck steps with `startedAt`, `durationMs`, `stuckAtMs`, `recoveryAttempts`
+- `state`: trace session state
+
+`clear_trace`
+
+```json
+{}
+```
+
 ## Notes for Devs
 
 - In the side panel Tool Tester tab, pick a tool and pass args JSON.

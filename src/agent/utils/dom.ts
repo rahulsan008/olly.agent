@@ -1,5 +1,6 @@
 import { bestMatch, normalizeText } from './matcher';
 import { isInteractive, isVisible } from './visibility';
+import { finder } from '@medv/finder';
 
 export type ResolveElementOptions = {
   query?: string;
@@ -19,7 +20,17 @@ function elementText(element: Element): string {
   const title = element.getAttribute('title');
   const placeholder = element.getAttribute('placeholder');
   const value = (htmlEl as HTMLInputElement).value;
-  const label = htmlEl.labels?.[0]?.textContent ?? '';
+  const labelTarget =
+    htmlEl instanceof HTMLButtonElement ||
+    htmlEl instanceof HTMLInputElement ||
+    htmlEl instanceof HTMLMeterElement ||
+    htmlEl instanceof HTMLOutputElement ||
+    htmlEl instanceof HTMLProgressElement ||
+    htmlEl instanceof HTMLSelectElement ||
+    htmlEl instanceof HTMLTextAreaElement
+      ? htmlEl
+      : null;
+  const label = labelTarget?.labels?.[0]?.textContent ?? '';
 
   return normalizeText([
     htmlEl.innerText,
@@ -59,6 +70,15 @@ function queryBySelector(root: ParentNode, selector: string, requireVisible: boo
   }
 }
 
+function looksLikeSelector(query: string): boolean {
+  const value = query.trim();
+  if (!value) return false;
+  return (
+    /[#.[\]:>,+~]/.test(value) ||
+    /^\*|^[a-z][a-z0-9_-]*(?:[#.[\]:]|$)/i.test(value)
+  );
+}
+
 function queryByText(root: ParentNode, query: string, options: ResolveElementOptions): Element | null {
   const candidates = collectCandidates(root, options);
   const matched = bestMatch(query, candidates, elementText, 0.35);
@@ -88,6 +108,10 @@ export async function resolveElement(options: ResolveElementOptions): Promise<El
 
   return retry(() => {
     if (query) {
+      if (looksLikeSelector(query)) {
+        const byQuerySelector = queryBySelector(root, query, requireVisible);
+        if (byQuerySelector) return byQuerySelector;
+      }
       const byQuery = queryByText(root, query, options);
       if (byQuery) return byQuery;
     }
@@ -117,6 +141,17 @@ export function extractElementSummary(element: Element): Record<string, unknown>
     href: (htmlEl as HTMLAnchorElement).href ?? undefined,
     type: (htmlEl as HTMLInputElement).type ?? undefined
   };
+}
+
+export function selectorForElement(element: Element): string {
+  const htmlEl = element as HTMLElement;
+  if (htmlEl.id) return `#${CSS.escape(htmlEl.id)}`;
+  try {
+    return finder(htmlEl, { className: () => false });
+  } catch {
+    const tag = htmlEl.tagName.toLowerCase();
+    return tag;
+  }
 }
 
 export function getInteractiveElements(root: ParentNode = document): Element[] {

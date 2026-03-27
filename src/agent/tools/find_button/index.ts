@@ -1,5 +1,5 @@
 import type { ToolResult } from '../../core/types';
-import { extractElementSummary, resolveElement } from '../../utils/dom';
+import { extractElementSummary, resolveElement, selectorForElement } from '../../utils/dom';
 
 type FindButtonArgs = {
   query: string;
@@ -17,5 +17,11 @@ export async function run(args: FindButtonArgs): Promise<ToolResult> {
 
   if (!element) return { success: false, error: 'Button not found' };
 
-  return { success: true, data: { summary: extractElementSummary(element) } };
+  return {
+    success: true,
+    data: {
+      selector: selectorForElement(element),
+      summary: extractElementSummary(element)
+    }
+  };
 }

@@ -17,6 +17,7 @@ import * as getButtons from './get/buttons';
 import * as getInputs from './get/inputs';
 import * as getLinks from './get/links';
 import * as getVisibleElements from './get/visible_elements';
+import * as extract from './extract/index';
 
 import * as waitForElement from './wait/wait_for_element';
 import * as waitForText from './wait/wait_for_text';
@@ -36,6 +37,21 @@ import * as recordStop from './record/stop';
 import * as recordReplay from './record/replay';
 
 import * as screenshot from './screenshot/index';
+import * as getNewPlan from './get_new_plan/index';
+import * as understandScreen from './understand_screen/index';
+import * as classifyPageState from './classify_page_state/index';
+import * as extractStructuredData from './extract_structured_data/index';
+import * as rankCandidates from './rank_candidates/index';
+import * as generateSearchQuery from './generate_search_query/index';
+import * as rewriteActionQuery from './rewrite_action_query/index';
+import * as detectBlocker from './detect_blocker/index';
+import * as composeText from './compose_text/index';
+import * as verifyTaskCompletion from './verify_task_completion/index';
+import * as strategyReplan from './strategy_replan/index';
+import * as startTrace from './state/start_trace';
+import * as getTrace from './state/get_trace';
+import * as clearTrace from './state/clear_trace';
+import * as visualClick from './visual_click/index';
 
 export const toolRegistry: Record<string, ToolRunner> = {
   click: click.run,
@@ -55,6 +71,7 @@ export const toolRegistry: Record<string, ToolRunner> = {
   get_inputs: getInputs.run,
   get_links: getLinks.run,
   get_visible_elements: getVisibleElements.run,
+  extract: extract.run,
 
   wait_for_element: waitForElement.run,
   wait_for_text: waitForText.run,
@@ -74,4 +91,20 @@ export const toolRegistry: Record<string, ToolRunner> = {
   record_replay: recordReplay.run,
 
   screenshot: screenshot.run,
+  get_new_plan: getNewPlan.run,
+  understand_screen: understandScreen.run,
+  classify_page_state: classifyPageState.run,
+  extract_structured_data: extractStructuredData.run,
+  rank_candidates: rankCandidates.run,
+  generate_search_query: generateSearchQuery.run,
+  rewrite_action_query: rewriteActionQuery.run,
+  detect_blocker: detectBlocker.run,
+  compose_text: composeText.run,
+  verify_task_completion: verifyTaskCompletion.run,
+  strategy_replan: strategyReplan.run,
+
+  start_trace: startTrace.run,
+  get_trace: getTrace.run,
+  clear_trace: clearTrace.run,
+  visual_click: visualClick.run,
 };
