@@ -17,6 +17,7 @@ type AttemptRecord = {
   args: Record<string, unknown>;
   result: string;
   success: boolean;
+  stateChanged?: boolean;
 };
 
 const MAX_SUBGOAL_ATTEMPTS = 20;
@@ -42,6 +43,19 @@ async function sendToContent<T>(tabId: number, message: object): Promise<T> {
 
 function isReceivingEndError(message: string): boolean {
   return message.includes('Receiving end does not exist');
+}
+
+function normalizeUrlForCompare(value: string): string {
+  try {
+    const url = new URL(value);
+    url.hash = '';
+    if (url.pathname !== '/' && url.pathname.endsWith('/')) {
+      url.pathname = url.pathname.slice(0, -1);
+    }
+    return url.toString();
+  } catch {
+    return value.trim();
+  }
 }
 
 async function waitForTabReady(tabId: number, timeoutMs = 10000): Promise<void> {
@@ -105,6 +119,53 @@ async function waitForContentScriptReady(tabId: number, attempts = 12, delayMs =
   return false;
 }
 
+async function runBackgroundNavigationTool(
+  tabId: number,
+  tool: string,
+  args: Record<string, unknown>,
+  signal: AbortSignal
+): Promise<AgentToolResult> {
+  try {
+    switch (tool) {
+      case 'go_to_url': {
+        const url = typeof args.url === 'string' ? args.url : '';
+        if (!url) return { success: false, error: 'Missing args.url' };
+        await chrome.tabs.update(tabId, { url });
+        break;
+      }
+      case 'go_back':
+        await chrome.tabs.goBack(tabId);
+        break;
+      case 'refresh':
+        await chrome.tabs.reload(tabId);
+        break;
+      default:
+        return { success: false, error: `Unsupported navigation tool: ${tool}` };
+    }
+
+    await waitForLoad(tabId, signal);
+
+    if (!(await waitForContentScriptReady(tabId, 12, 250))) {
+      const injected = await injectContentScript(tabId);
+      await waitForContentScriptReady(tabId, injected ? 12 : 12, 250);
+    }
+
+    const tab = await chrome.tabs.get(tabId).catch(() => null);
+    return {
+      success: true,
+      data: {
+        url: tab?.url ?? (typeof args.url === 'string' ? args.url : ''),
+        title: tab?.title ?? ''
+      }
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Navigation failed'
+    };
+  }
+}
+
 async function sendAgentTool(tabId: number, tool: string, args: Record<string, unknown>): Promise<AgentToolResult> {
   try {
     if (!(await isContentScriptReady(tabId))) {
@@ -138,7 +199,7 @@ async function sendAgentTool(tabId: number, tool: string, args: Record<string, u
 
     await waitForTabReady(tabId);
     const injected = await injectContentScript(tabId);
-    const ready = injected ? await waitForContentScriptReady(tabId) : await waitForContentScriptReady(tabId, 4, 200);
+    const ready = await waitForContentScriptReady(tabId, injected ? 12 : 12, 250);
     //debug
     console.debug('[executor] receiving end missing', { tool, args, ...tabDebug, injected, ready, error: msg });
     if (ready) {
@@ -185,6 +246,17 @@ async function waitForLoad(tabId: number, signal: AbortSignal): Promise<void> {
   if (!signal.aborted) await new Promise((r) => setTimeout(r, 500));
 }
 
+async function settleAfterAction(signal: AbortSignal, delayMs = 350): Promise<void> {
+  if (signal.aborted) return;
+  await new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, delayMs);
+    signal.addEventListener('abort', () => {
+      clearTimeout(timer);
+      resolve();
+    }, { once: true });
+  });
+}
+
 function asError(result: { success: boolean; error?: string }): string {
   return result.error ?? 'Tool failed';
 }
@@ -208,8 +280,13 @@ function normalizeToolArgs(tool: string, args: Record<string, unknown>): Record<
 async function runTool(tabId: number, tool: string, args: Record<string, unknown>, signal: AbortSignal): Promise<AgentToolResult> {
   if (signal.aborted) return { success: false, error: 'Aborted' };
   const normalizedArgs = normalizeToolArgs(tool, args);
-  const result = await sendAgentTool(tabId, tool, normalizedArgs);
   const isNavigationTool = tool === 'go_to_url' || tool === 'go_back' || tool === 'refresh';
+
+  if (isNavigationTool) {
+    return runBackgroundNavigationTool(tabId, tool, normalizedArgs, signal);
+  }
+
+  const result = await sendAgentTool(tabId, tool, normalizedArgs);
   if (!result.success && isNavigationTool && result.error === NAV_TRANSITION_ERROR) {
     await waitForLoad(tabId, signal);
     return { success: true, data: { recoveredFromTransition: true } };
@@ -230,6 +307,20 @@ function extractPageText(result: AgentToolResult): string {
   if (!result.success || !result.data || typeof result.data !== 'object') return '';
   const value = (result.data as { text?: unknown }).text;
   return typeof value === 'string' ? value : '';
+}
+
+function normalizeStateText(text: string): string {
+  return text.replace(/\s+/g, ' ').trim().slice(0, 2000);
+}
+
+function didLocalStateChange(params: {
+  beforeUrl: string;
+  beforeText: string;
+  afterUrl: string;
+  afterText: string;
+}): boolean {
+  if (didUrlChange(params.beforeUrl, params.afterUrl)) return true;
+  return normalizeStateText(params.beforeText) !== normalizeStateText(params.afterText);
 }
 
 function sameAction(a: AttemptRecord, b: AttemptRecord): boolean {
@@ -256,6 +347,7 @@ function repeatedNoProgressStreak(attemptHistory: AttemptRecord[]): boolean {
   if (attemptHistory.length < 2) return false;
   const lastTwo = attemptHistory.slice(-2);
   if (lastTwo.some((entry) => !entry.success)) return false;
+  if (lastTwo.some((entry) => entry.stateChanged)) return false;
   if (!lastTwo.every((entry) => isDiscoveryTool(entry.tool))) return false;
   return sameAction(lastTwo[0], lastTwo[1]);
 }
@@ -299,6 +391,174 @@ function extractScreenUnderstanding(result: AgentToolResult): string {
   if (typeof data.summary === 'string') return data.summary;
   if (typeof data.understanding === 'string') return data.understanding;
   return '';
+}
+
+function extractScreenDetails(result: AgentToolResult): {
+  understanding: string;
+  whyPreviousStepFailed: string;
+  nextHint: string;
+} {
+  if (!result.success || !result.data || typeof result.data !== 'object') {
+    return { understanding: '', whyPreviousStepFailed: '', nextHint: '' };
+  }
+  const data = result.data as Record<string, unknown>;
+  return {
+    understanding: typeof data.understanding === 'string'
+      ? data.understanding
+      : (typeof data.summary === 'string' ? data.summary : ''),
+    whyPreviousStepFailed: typeof data.whyPreviousStepFailed === 'string'
+      ? data.whyPreviousStepFailed
+      : '',
+    nextHint: typeof data.nextHint === 'string'
+      ? data.nextHint
+      : ''
+  };
+}
+
+function extractScreenActions(result: AgentToolResult): AgentStep[] {
+  if (!result.success || !result.data || typeof result.data !== 'object') return [];
+  const data = result.data as Record<string, unknown>;
+  const actions = Array.isArray(data.actions) ? data.actions : [];
+  return actions
+    .map((action) => normalizePlannedStep(action))
+    .filter((action): action is AgentStep => Boolean(action))
+    .filter((action) => action.tool !== 'get_new_plan' && action.tool !== 'understand_screen')
+    .slice(0, 8);
+}
+
+function buildScreenSummary(details: {
+  understanding: string;
+  whyPreviousStepFailed: string;
+  nextHint: string;
+}): string {
+  return [
+    details.understanding,
+    details.whyPreviousStepFailed ? `Previous failed because: ${details.whyPreviousStepFailed}` : '',
+    details.nextHint ? `Next hint: ${details.nextHint}` : ''
+  ].filter(Boolean).join(' | ');
+}
+
+function extractThinkAction(result: AgentToolResult): { tool: string; args: Record<string, unknown> } | null {
+  if (!result.success || !result.data || typeof result.data !== 'object') return null;
+  const data = result.data as Record<string, unknown>;
+  const nextAction = data.nextAction;
+  if (!nextAction || typeof nextAction !== 'object') return null;
+  const candidate = nextAction as Record<string, unknown>;
+  if (typeof candidate.tool !== 'string' || !candidate.args || typeof candidate.args !== 'object') {
+    return null;
+  }
+  return {
+    tool: candidate.tool,
+    args: candidate.args as Record<string, unknown>
+  };
+}
+
+function formatToolResult(tool: string, result: AgentToolResult): string {
+  if (!result.success) return asError(result);
+  if (!result.data || typeof result.data !== 'object') return 'success';
+
+  const data = result.data as Record<string, unknown>;
+
+  if (tool === 'understand_screen') {
+    const details = extractScreenDetails(result);
+    const actions = extractScreenActions(result);
+    const summary = buildScreenSummary(details);
+    if (summary && actions.length) return `${summary} | actions: ${actions.length}`;
+    if (summary) return summary;
+    if (actions.length) return `screen understood | actions: ${actions.length}`;
+    return 'screen understood';
+  }
+
+  if (tool === 'think') {
+    const nextAction = extractThinkAction(result);
+    const reason = typeof data.reason === 'string' ? data.reason : '';
+    const actionText = nextAction
+      ? `next: ${nextAction.tool} ${JSON.stringify(nextAction.args)}`
+      : 'next: none';
+    return reason ? `${actionText} | ${reason}` : actionText;
+  }
+
+  if (tool === 'get_new_plan') {
+    const actions = Array.isArray((data as { actions?: unknown[] }).actions)
+      ? ((data as { actions?: unknown[] }).actions ?? [])
+      : [];
+    const understanding = typeof data.understanding === 'string' ? data.understanding : '';
+    return understanding
+      ? `plan: ${actions.length} action(s) | ${understanding}`
+      : `plan: ${actions.length} action(s)`;
+  }
+
+  if (tool === 'click_coordinates') {
+    const clickedTag = typeof data.clickedTag === 'string' ? data.clickedTag : '';
+    const targetTag = typeof data.targetTag === 'string' ? data.targetTag : '';
+    const summary = data.summary && typeof data.summary === 'object'
+      ? data.summary as Record<string, unknown>
+      : null;
+    const text = summary && typeof summary.text === 'string' ? summary.text : '';
+    return [clickedTag ? `clicked ${clickedTag}` : '', targetTag ? `target ${targetTag}` : '', text ? `"${text}"` : '']
+      .filter(Boolean)
+      .join(' | ') || 'success';
+  }
+
+  if (tool === 'find_buttons' && Array.isArray(result.data)) {
+    return `found ${result.data.length} button candidate(s)`;
+  }
+
+  if (tool === 'find_button' || tool === 'find_input' || tool === 'find') {
+    const selector = extractSelector(result);
+    return selector ? `found ${selector}` : 'success';
+  }
+
+  return 'success';
+}
+
+function inferThinkCandidates(lastAction: AgentStep | null, lastResultData: unknown): unknown[] {
+  if (!lastAction) return [];
+  if (lastAction.tool === 'find_buttons' && Array.isArray(lastResultData)) {
+    return lastResultData;
+  }
+  if (lastAction.tool === 'find_button' && lastResultData && typeof lastResultData === 'object') {
+    return [lastResultData];
+  }
+  return [];
+}
+
+function extractValidThinkCandidates(args: Record<string, unknown>): unknown[] | null {
+  if (!('candidates' in args)) return null;
+  return Array.isArray(args.candidates) ? args.candidates : null;
+}
+
+function withThinkContext(
+  args: Record<string, unknown>,
+  lastAction: AgentStep | null,
+  lastResultData: unknown
+): Record<string, unknown> {
+  const explicitCandidates = extractValidThinkCandidates(args);
+  if (explicitCandidates && explicitCandidates.length) return args;
+
+  const candidates = inferThinkCandidates(lastAction, lastResultData);
+  if (!candidates.length) {
+    if (explicitCandidates === null) return args;
+    const nextArgs = { ...args };
+    delete nextArgs.candidates;
+    return nextArgs;
+  }
+
+  return {
+    ...Object.fromEntries(Object.entries(args).filter(([key]) => key !== 'candidates')),
+    candidates
+  };
+}
+
+function thinkHasUsableCandidates(
+  args: Record<string, unknown>,
+  lastAction: AgentStep | null,
+  lastResultData: unknown
+): boolean {
+  const explicitCandidates = extractValidThinkCandidates(args);
+  if (explicitCandidates && explicitCandidates.length) return true;
+  const inferredCandidates = inferThinkCandidates(lastAction, lastResultData);
+  return inferredCandidates.length > 0;
 }
 
 function extractPlannedAction(result: AgentToolResult): { tool: string; args: Record<string, unknown> } | null {
@@ -366,7 +626,8 @@ function extractPlannedActions(result: AgentToolResult): AgentStep[] {
 
 function lastAttemptFailed(attemptHistory: AttemptRecord[]): boolean {
   if (!attemptHistory.length) return false;
-  return !attemptHistory[attemptHistory.length - 1].success;
+  const last = attemptHistory[attemptHistory.length - 1];
+  return !last.success && !last.stateChanged;
 }
 
 function shouldRunRecoveryPlanning(attemptHistory: AttemptRecord[]): boolean {
@@ -375,6 +636,12 @@ function shouldRunRecoveryPlanning(attemptHistory: AttemptRecord[]): boolean {
 
 function isNavigationTool(tool: string): boolean {
   return tool === 'go_to_url' || tool === 'go_back' || tool === 'refresh';
+}
+
+function didUrlChange(beforeUrl: string, afterUrl: string): boolean {
+  const before = normalizeUrlForCompare(beforeUrl);
+  const after = normalizeUrlForCompare(afterUrl);
+  return Boolean(before && after && before !== after);
 }
 
 type AuthState = 'login_required' | 'logged_in_or_home' | 'unknown';
@@ -447,7 +714,7 @@ async function runLoggedTool(params: {
     log: {
       ...log,
       status: result.success ? 'success' : 'error',
-      result: result.success ? 'success' : asError(result),
+      result: formatToolResult(tool, result),
       //debug
       debug: result.debug
     }
@@ -463,8 +730,10 @@ async function executePlannedAction(params: {
   tabId: number;
   send: Send;
   signal: AbortSignal;
-}): Promise<{ success: boolean; error?: string }> {
-  const { action, index, tabId, send, signal } = params;
+  lastAction: AgentStep | null;
+  lastResultData: unknown;
+}): Promise<{ success: boolean; error?: string; data?: unknown; executedTool?: string; executedArgs?: Record<string, unknown> }> {
+  const { action, index, tabId, send, signal, lastAction, lastResultData } = params;
   const attempts: AgentStep[] = [
     action,
     ...(action.alternates ?? []).map((alternate) => ({
@@ -476,10 +745,19 @@ async function executePlannedAction(params: {
 
   for (let attemptIndex = 0; attemptIndex < attempts.length; attemptIndex += 1) {
     const candidate = attempts[attemptIndex];
+    if (candidate.tool === 'think' && !thinkHasUsableCandidates(candidate.args, lastAction, lastResultData)) {
+      if (attemptIndex === attempts.length - 1) {
+        return { success: false, error: 'Think requires real candidates; previous find_buttons/find_button returned none.' };
+      }
+      continue;
+    }
+    const candidateArgs = candidate.tool === 'think'
+      ? withThinkContext(candidate.args, lastAction, lastResultData)
+      : candidate.args;
     const result = await runLoggedTool({
       tabId,
       tool: candidate.tool,
-      args: candidate.args,
+      args: candidateArgs,
       send,
       signal,
       logIdPrefix: `planned-step-${index + 1}-${attemptIndex + 1}`
@@ -492,8 +770,56 @@ async function executePlannedAction(params: {
       continue;
     }
 
+    if (candidate.tool === 'think') {
+      const thoughtAction = extractThinkAction(result);
+      if (!thoughtAction) {
+        if (attemptIndex === attempts.length - 1) {
+          return { success: false, error: 'Think did not return a nextAction' };
+        }
+        continue;
+      }
+
+      const thoughtResult = await runLoggedTool({
+        tabId,
+        tool: thoughtAction.tool,
+        args: thoughtAction.args,
+        send,
+        signal,
+        logIdPrefix: `planned-think-next-${index + 1}-${attemptIndex + 1}`
+      });
+
+      if (!thoughtResult.success) {
+        if (attemptIndex === attempts.length - 1) {
+          return { success: false, error: asError(thoughtResult) };
+        }
+        continue;
+      }
+
+      if (!candidate.check) {
+        return { success: true, data: thoughtResult.data, executedTool: thoughtAction.tool, executedArgs: thoughtAction.args };
+      }
+
+      const checkResult = await runLoggedTool({
+        tabId,
+        tool: candidate.check.tool,
+        args: candidate.check.args,
+        send,
+        signal,
+        logIdPrefix: `planned-check-${index + 1}-${attemptIndex + 1}`
+      });
+
+      if (checkResult.success) {
+        return { success: true, data: thoughtResult.data, executedTool: thoughtAction.tool, executedArgs: thoughtAction.args };
+      }
+
+      if (attemptIndex === attempts.length - 1) {
+        return { success: false, error: asError(checkResult) };
+      }
+      continue;
+    }
+
     if (!candidate.check) {
-      return { success: true };
+      return { success: true, data: result.data, executedTool: candidate.tool, executedArgs: candidateArgs };
     }
 
     const checkResult = await runLoggedTool({
@@ -506,7 +832,7 @@ async function executePlannedAction(params: {
     });
 
     if (checkResult.success) {
-      return { success: true };
+      return { success: true, data: result.data, executedTool: candidate.tool, executedArgs: candidateArgs };
     }
 
     if (attemptIndex === attempts.length - 1) {
@@ -617,6 +943,11 @@ export async function decideNextAction(params: {
       '',
       'Do not repeat the same successful discovery action if page state has not changed.',
       'If a find/find_input/find_button succeeded already, choose the next interaction step instead of finding it again.',
+      'If an input or button can be identified by exact id/class/name/data-testid/selector/placeholder, prefer input_byid or button_byid over fuzzy matching.',
+      'If current context or previous findings include an exact selector/id/name/data-testid/placeholder/href, reuse that exact identifier instead of a generic label.',
+      'If the target may appear multiple times, use find_buttons first.',
+      'If candidate choice depends on screenshot/layout, use think after find_buttons so it returns the concrete next action.',
+      'Use random_coordinates_by_text only if any matching button is acceptable for the task.',
       'If auth state is logged_in_or_home or unknown, do not choose login/auth actions.',
       'Only choose login/auth actions when auth state is login_required.',
       'Choose ONE action to make progress. Prefer find before click.',
@@ -689,7 +1020,9 @@ export async function executeSubGoal(params: {
   const { subGoal, goalContext, tabId, send, signal, apiKey, model } = params;
   const attemptHistory: AttemptRecord[] = [];
   const targetUrl = inferTargetUrl(goalContext);
-  let forcedNextAction: { tool: string; args: Record<string, unknown> } | null = null;
+  const forcedActionQueue: { tool: string; args: Record<string, unknown> }[] = [];
+  let lastSuccessfulAction: AgentStep | null = null;
+  let lastSuccessfulResultData: unknown = null;
 
   for (let attempt = 1; attempt <= MAX_SUBGOAL_ATTEMPTS; attempt += 1) {
     if (signal.aborted) return { success: false, error: 'Aborted' };
@@ -714,7 +1047,7 @@ export async function executeSubGoal(params: {
           log: {
             ...navLog,
             status: navResult.success ? 'success' : 'error',
-            result: navResult.success ? 'success' : asError(navResult),
+            result: formatToolResult('go_to_url', navResult),
             //debug
             debug: navResult.debug
           }
@@ -730,10 +1063,11 @@ export async function executeSubGoal(params: {
           send,
           signal
         });
-        const firstNavigationAction = navigationActions[0];
-        if (firstNavigationAction && !isLoginLikeAction(firstNavigationAction.tool, firstNavigationAction.args)) {
-          forcedNextAction = { tool: firstNavigationAction.tool, args: firstNavigationAction.args };
-        }
+        forcedActionQueue.push(
+          ...navigationActions
+            .filter((item) => !isLoginLikeAction(item.tool, item.args))
+            .map((item) => ({ tool: item.tool, args: item.args }))
+        );
       }
     }
 
@@ -757,7 +1091,6 @@ export async function executeSubGoal(params: {
     }
 
     let screenUnderstanding = '';
-    let replannedAction: { tool: string; args: Record<string, unknown> } | null = null;
 
     if (shouldRunRecoveryPlanning(attemptHistory)) {
       const understandResult = await runLoggedTool({
@@ -771,6 +1104,8 @@ export async function executeSubGoal(params: {
             completionCriteria: subGoal.completionCriteria,
             currentUrl: updatedUrl,
             authState,
+            completedTasks: attemptHistory.filter((a) => a.success).map((a) => `${a.tool}:${JSON.stringify(a.args)}`),
+            failedTasks: attemptHistory.filter((a) => !a.success).map((a) => `${a.tool}:${JSON.stringify(a.args)} -> ${a.result}`),
             previousFailure: attemptHistory.length
               ? {
                 tool: attemptHistory[attemptHistory.length - 1].tool,
@@ -784,40 +1119,53 @@ export async function executeSubGoal(params: {
         signal,
         logIdPrefix: `subgoal-understand-${attempt}`
       });
-      screenUnderstanding = extractScreenUnderstanding(understandResult);
-
-      const replannedResult = await runLoggedTool({
-        tabId,
-        tool: 'get_new_plan',
-        args: {
-          query: goalContext,
-          imageDataUrl: screenshotDataUrl ?? undefined,
-          trace: attemptHistory.slice(-5),
-          context: {
-            subGoal: subGoal.description,
-            completionCriteria: subGoal.completionCriteria,
-            currentUrl: updatedUrl,
-            pageText: pageText.slice(0, 1500),
-            authState,
-            summary: screenUnderstanding
+      const screenDetails = extractScreenDetails(understandResult);
+      screenUnderstanding = buildScreenSummary(screenDetails);
+      const screenActions = extractScreenActions(understandResult);
+      if (screenActions.length) {
+        forcedActionQueue.push(
+          ...screenActions
+            .filter((item) => !isLoginLikeAction(item.tool, item.args))
+            .map((item) => ({ tool: item.tool, args: item.args }))
+        );
+      } else {
+        const replannedResult = await runLoggedTool({
+          tabId,
+          tool: 'get_new_plan',
+          args: {
+            query: goalContext,
+            imageDataUrl: screenshotDataUrl ?? undefined,
+            trace: attemptHistory.slice(-5),
+            context: {
+              subGoal: subGoal.description,
+              completionCriteria: subGoal.completionCriteria,
+              currentUrl: updatedUrl,
+              pageText: pageText.slice(0, 1500),
+              authState,
+              summary: screenUnderstanding,
+              screenUnderstanding: screenDetails.understanding,
+              whyPreviousStepFailed: screenDetails.whyPreviousStepFailed,
+              nextHint: screenDetails.nextHint
+            },
+            completed_tasks: attemptHistory.filter((a) => a.success).map((a) => `${a.tool}:${JSON.stringify(a.args)}`),
+            failed_tasks: attemptHistory.filter((a) => !a.success).map((a) => `${a.tool}:${JSON.stringify(a.args)}`),
+            understand_prev_screen: screenUnderstanding
           },
-          completed_tasks: attemptHistory.filter((a) => a.success).map((a) => `${a.tool}:${JSON.stringify(a.args)}`),
-          failed_tasks: attemptHistory.filter((a) => !a.success).map((a) => `${a.tool}:${JSON.stringify(a.args)}`),
-          understand_prev_screen: screenUnderstanding
-        },
-        send,
-        signal,
-        logIdPrefix: `subgoal-replan-${attempt}`
-      });
-
-      replannedAction = extractPlannedAction(replannedResult);
+          send,
+          signal,
+          logIdPrefix: `subgoal-replan-${attempt}`
+        });
+        forcedActionQueue.push(
+          ...extractPlannedActions(replannedResult)
+            .filter((item) => !isLoginLikeAction(item.tool, item.args))
+            .map((item) => ({ tool: item.tool, args: item.args }))
+        );
+      }
     }
 
     let action: { tool: string; args: Record<string, unknown> } | null = null;
-    if (forcedNextAction) {
-      action = forcedNextAction;
-    } else if (replannedAction && !isLoginLikeAction(replannedAction.tool, replannedAction.args)) {
-      action = replannedAction;
+    if (forcedActionQueue.length) {
+      action = forcedActionQueue.shift() ?? null;
     } else {
       action = await decideNextAction({
         subGoal,
@@ -839,29 +1187,96 @@ export async function executeSubGoal(params: {
       return { success: false, error: 'Failed to decide next action' };
     }
 
-    forcedNextAction = null;
-
     const log: ToolCallLog = {
       id: `subgoal-${Date.now()}-${attempt}`,
       name: action.tool,
-      args: action.args,
+      args: action.tool === 'think'
+        ? withThinkContext(action.args, lastSuccessfulAction, lastSuccessfulResultData)
+        : action.args,
       status: 'pending',
       timestamp: Date.now()
     };
     send({ type: 'TOOL_CALLED', log });
 
-    const result = await runTool(tabId, action.tool, action.args, signal);
-    const resultText = result.success ? 'success' : asError(result);
-    const query = typeof action.args.query === 'string' ? action.args.query : '';
+    const effectiveArgs = log.args;
+    if (action.tool === 'think' && !thinkHasUsableCandidates(effectiveArgs, lastSuccessfulAction, lastSuccessfulResultData)) {
+      const thinkError = 'Think requires real candidates; previous find_buttons/find_button returned none.';
+      send({
+        type: 'TOOL_CALLED',
+        log: {
+          ...log,
+          status: 'error',
+          result: thinkError
+        }
+      });
+      attemptHistory.push({
+        tool: action.tool,
+        args: effectiveArgs,
+        result: thinkError,
+        success: false
+      });
+      continue;
+    }
 
-    if (currentDomain && result.success && (action.tool === 'find' || action.tool === 'click')) {
-      const selector = extractSelector(result);
+    const preActionTab = await chrome.tabs.get(tabId).catch(() => null);
+    const preActionUrl = preActionTab?.url ?? updatedUrl;
+    const result = await runTool(tabId, action.tool, effectiveArgs, signal);
+    let effectiveResult = result;
+    let executedTool = action.tool;
+    let executedArgs = effectiveArgs;
+
+    if (result.success && action.tool === 'think') {
+      const thoughtAction = extractThinkAction(result);
+      if (!thoughtAction) {
+        effectiveResult = { success: false, error: 'Think did not return a nextAction' };
+      } else {
+        executedTool = thoughtAction.tool;
+        executedArgs = thoughtAction.args;
+        const thoughtLog: ToolCallLog = {
+          id: `subgoal-think-${Date.now()}-${attempt}`,
+          name: thoughtAction.tool,
+          args: thoughtAction.args,
+          status: 'pending',
+          timestamp: Date.now()
+        };
+        send({ type: 'TOOL_CALLED', log: thoughtLog });
+        const thoughtResult = await runTool(tabId, thoughtAction.tool, thoughtAction.args, signal);
+        send({
+          type: 'TOOL_CALLED',
+          log: {
+            ...thoughtLog,
+            status: thoughtResult.success ? 'success' : 'error',
+            result: formatToolResult(thoughtAction.tool, thoughtResult),
+            debug: thoughtResult.debug
+          }
+        });
+        effectiveResult = thoughtResult;
+      }
+    }
+
+    await settleAfterAction(signal);
+    const postStateResult = await sendAgentTool(tabId, 'get_page_text', {});
+    const postStateText = extractPageText(postStateResult);
+    const postStateTab = await chrome.tabs.get(tabId).catch(() => null);
+    const postStateUrl = postStateTab?.url ?? updatedUrl;
+    const stateChanged = didLocalStateChange({
+      beforeUrl: updatedUrl,
+      beforeText: pageText,
+      afterUrl: postStateUrl,
+      afterText: postStateText
+    });
+
+    const resultText = effectiveResult.success ? formatToolResult(action.tool, result) : asError(effectiveResult);
+    const query = typeof effectiveArgs.query === 'string' ? effectiveArgs.query : '';
+
+    if (currentDomain && effectiveResult.success && (action.tool === 'find' || action.tool === 'click')) {
+      const selector = extractSelector(effectiveResult);
       if (query && selector) {
         await recordSelectorSuccess(currentDomain, query, selector, action.tool);
       }
     }
 
-    if (currentDomain && !result.success && query) {
+    if (currentDomain && !effectiveResult.success && query) {
       await recordSelectorFailure(currentDomain, query);
     }
 
@@ -869,18 +1284,19 @@ export async function executeSubGoal(params: {
       type: 'TOOL_CALLED',
       log: {
         ...log,
-        status: result.success ? 'success' : 'error',
-        result: resultText,
+        status: effectiveResult.success ? 'success' : 'error',
+        result: action.tool === 'think' ? formatToolResult('think', result) : resultText,
         //debug
-        debug: result.debug
+        debug: effectiveResult.debug
       }
     });
 
     attemptHistory.push({
       tool: action.tool,
-      args: action.args,
+      args: effectiveArgs,
       result: resultText,
-      success: result.success
+      success: effectiveResult.success,
+      stateChanged
     });
 
     if (repeatedNoProgressStreak(attemptHistory)) {
@@ -888,11 +1304,22 @@ export async function executeSubGoal(params: {
       attemptHistory[attemptHistory.length - 1].result = 'no progress: repeated successful discovery action';
     }
 
-    if (!result.success && repeatedFailureStreak(attemptHistory)) {
+    if (!effectiveResult.success && repeatedFailureStreak(attemptHistory)) {
       return { success: false, error: 'Stuck: same failed action repeated 3 times' };
     }
 
-    if (result.success && isNavigationTool(action.tool)) {
+    if (effectiveResult.success) {
+      lastSuccessfulAction = { tool: executedTool as AgentStep['tool'], args: executedArgs };
+      lastSuccessfulResultData = effectiveResult.data;
+    }
+
+    const postActionUrl = effectiveResult.success ? postStateUrl : '';
+    const causedNavigation = effectiveResult.success && (
+      isNavigationTool(executedTool) ||
+      didUrlChange(preActionUrl, postActionUrl)
+    );
+
+    if (causedNavigation) {
       const navigationActions = await replanAfterNavigation({
         goal: goalContext,
         completedTasks: attemptHistory.filter((a) => a.success).map((a) => `${a.tool}:${JSON.stringify(a.args)}`),
@@ -900,10 +1327,11 @@ export async function executeSubGoal(params: {
         send,
         signal
       });
-      const firstNavigationAction = navigationActions[0];
-      if (firstNavigationAction && !isLoginLikeAction(firstNavigationAction.tool, firstNavigationAction.args)) {
-        forcedNextAction = { tool: firstNavigationAction.tool, args: firstNavigationAction.args };
-      }
+      forcedActionQueue.push(
+        ...navigationActions
+          .filter((item) => !isLoginLikeAction(item.tool, item.args))
+          .map((item) => ({ tool: item.tool, args: item.args }))
+      );
     }
   }
 
@@ -953,6 +1381,8 @@ async function replanFromPlannedFailure(params: {
       context: {
         currentUrl,
         authState,
+        completedTasks: completedActions.map((action) => `${action.tool}:${JSON.stringify(action.args)}`),
+        failedTasks: [`${failedAction.tool}:${JSON.stringify(failedAction.args)} -> ${failedError}`],
         failedStep: `${failedAction.tool}:${JSON.stringify(failedAction.args)}`,
         failedReason: failedError,
         previousFailure: {
@@ -967,7 +1397,13 @@ async function replanFromPlannedFailure(params: {
     logIdPrefix: 'planned-recover-understand'
   });
 
-  const screenUnderstanding = extractScreenUnderstanding(understandResult);
+  const screenDetails = extractScreenDetails(understandResult);
+  const screenUnderstanding = buildScreenSummary(screenDetails);
+  const screenActions = extractScreenActions(understandResult);
+
+  if (screenActions.length) {
+    return screenActions;
+  }
 
   const replannedResult = await runLoggedTool({
     tabId,
@@ -981,6 +1417,9 @@ async function replanFromPlannedFailure(params: {
         pageText: pageText.slice(0, 1500),
         authState,
         summary: screenUnderstanding,
+        screenUnderstanding: screenDetails.understanding,
+        whyPreviousStepFailed: screenDetails.whyPreviousStepFailed,
+        nextHint: screenDetails.nextHint,
         failedStep: `${failedAction.tool}:${JSON.stringify(failedAction.args)}`,
         failedReason: failedError
       },
@@ -1019,6 +1458,8 @@ async function replanAfterNavigation(params: {
       context: {
         currentUrl,
         authState,
+        completedTasks,
+        failedTasks: [],
         navigationJustHappened: true
       }
     },
@@ -1027,7 +1468,13 @@ async function replanAfterNavigation(params: {
     logIdPrefix: 'nav-understand'
   });
 
-  const screenUnderstanding = extractScreenUnderstanding(understandResult);
+  const screenDetails = extractScreenDetails(understandResult);
+  const screenUnderstanding = buildScreenSummary(screenDetails);
+  const screenActions = extractScreenActions(understandResult);
+
+  if (screenActions.length) {
+    return screenActions;
+  }
 
   const replannedResult = await runLoggedTool({
     tabId,
@@ -1040,6 +1487,9 @@ async function replanAfterNavigation(params: {
         pageText: pageText.slice(0, 1500),
         authState,
         summary: screenUnderstanding,
+        screenUnderstanding: screenDetails.understanding,
+        whyPreviousStepFailed: screenDetails.whyPreviousStepFailed,
+        nextHint: screenDetails.nextHint,
         navigationJustHappened: true
       },
       completed_tasks: completedTasks,
@@ -1083,11 +1533,27 @@ export async function executePlan(params: {
     return;
   }
 
+  const plannedActions = [...actions];
+  const currentTab = await chrome.tabs.get(tabId).catch(() => null);
+  const currentUrl = currentTab?.url ?? '';
+  if (
+    plannedActions.length &&
+    plannedActions[0].tool === 'go_to_url' &&
+    typeof plannedActions[0].args.url === 'string'
+  ) {
+    const firstUrl = plannedActions[0].args.url;
+    const sameUrl = normalizeUrlForCompare(currentUrl) === normalizeUrlForCompare(firstUrl);
+    if (sameUrl) {
+      plannedActions.shift();
+    }
+  }
+
   await sendAgentTool(tabId, 'start_trace', { goal });
 
-  if (actions.length) {
-    const plannedActions = [...actions];
+  if (plannedActions.length) {
     const completedActions: AgentStep[] = [];
+    let lastSuccessfulAction: AgentStep | null = null;
+    let lastSuccessfulResultData: unknown = null;
 
     for (let index = 0; index < plannedActions.length;) {
       if (signal.aborted) {
@@ -1096,6 +1562,8 @@ export async function executePlan(params: {
       }
 
       const action = plannedActions[index];
+      const preActionTab = await chrome.tabs.get(tabId).catch(() => null);
+      const preActionUrl = preActionTab?.url ?? '';
       send({ type: 'STATUS_UPDATE', isRunning: true, step: index + 1, phase: 'executing' });
       emitBridgeEvent(send, 'step_started', { index: index + 1, tool: action.tool });
 
@@ -1104,7 +1572,9 @@ export async function executePlan(params: {
         index,
         tabId,
         send,
-        signal
+        signal,
+        lastAction: lastSuccessfulAction,
+        lastResultData: lastSuccessfulResultData
       });
 
       if (!result.success) {
@@ -1133,9 +1603,23 @@ export async function executePlan(params: {
       }
 
       emitBridgeEvent(send, 'step_success', { index: index + 1, tool: action.tool });
-      completedActions.push(action);
+      const effectiveCompletedAction: AgentStep = {
+        tool: (result.executedTool ?? action.tool) as AgentStep['tool'],
+        args: result.executedArgs ?? action.args,
+        why: action.why,
+        check: action.check,
+        alternates: action.alternates
+      };
+      completedActions.push(effectiveCompletedAction);
+      lastSuccessfulAction = effectiveCompletedAction;
+      lastSuccessfulResultData = result.data;
 
-      if (isNavigationTool(action.tool)) {
+      const navigationTool = result.executedTool ?? action.tool;
+      await settleAfterAction(signal);
+      const postActionTab = await chrome.tabs.get(tabId).catch(() => null);
+      const postActionUrl = postActionTab?.url ?? '';
+      const causedNavigation = isNavigationTool(navigationTool) || didUrlChange(preActionUrl, postActionUrl);
+      if (causedNavigation) {
         const navigationActions = await replanAfterNavigation({
           goal,
           completedTasks: completedActions.map((item) => `${item.tool}:${JSON.stringify(item.args)}`),

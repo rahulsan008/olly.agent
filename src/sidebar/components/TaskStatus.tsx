@@ -9,8 +9,8 @@ export function TaskStatus({ state, onStop }: Props) {
   const label = state.error
     ? state.error
     : state.phase === 'planning'
-      ? 'Planning…'
-      : `Step ${state.stepCount} · running…`;
+      ? `Planning${state.currentTask ? `: ${state.currentTask}` : '…'}`
+      : `${state.currentTask ? `${state.currentTask} · ` : ''}Step ${state.stepCount} · running…`;
 
   return (
     <div style={{

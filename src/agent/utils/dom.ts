@@ -70,6 +70,20 @@ function queryBySelector(root: ParentNode, selector: string, requireVisible: boo
   }
 }
 
+export function queryFirstMatchingSelector(
+  root: ParentNode,
+  selectors: string[],
+  requireVisible = true
+): Element | null {
+  for (const selector of selectors) {
+    const trimmed = selector.trim();
+    if (!trimmed) continue;
+    const match = queryBySelector(root, trimmed, requireVisible);
+    if (match) return match;
+  }
+  return null;
+}
+
 function looksLikeSelector(query: string): boolean {
   const value = query.trim();
   if (!value) return false;
@@ -131,15 +145,41 @@ export function ensureInView(element: Element): void {
 
 export function extractElementSummary(element: Element): Record<string, unknown> {
   const htmlEl = element as HTMLElement;
+  const className = typeof htmlEl.className === 'string'
+    ? htmlEl.className.trim().replace(/\s+/g, ' ')
+    : '';
   return {
     tag: element.tagName.toLowerCase(),
     role: element.getAttribute('role') ?? undefined,
     text: normalizeText(htmlEl.innerText || element.textContent || ''),
+    ariaLabel: element.getAttribute('aria-label') ?? undefined,
+    title: element.getAttribute('title') ?? undefined,
     id: element.getAttribute('id') ?? undefined,
+    className: className || undefined,
     name: element.getAttribute('name') ?? undefined,
+    dataTestId: element.getAttribute('data-testid') ?? undefined,
     placeholder: element.getAttribute('placeholder') ?? undefined,
     href: (htmlEl as HTMLAnchorElement).href ?? undefined,
     type: (htmlEl as HTMLInputElement).type ?? undefined
+  };
+}
+
+export function getElementViewportRect(element: Element): Record<string, number | string> {
+  const rect = (element as HTMLElement).getBoundingClientRect();
+  const scrollX = window.scrollX || window.pageXOffset || 0;
+  const scrollY = window.scrollY || window.pageYOffset || 0;
+  return {
+    coordinateSpace: 'viewport',
+    x: rect.left,
+    y: rect.top,
+    centerX: rect.left + rect.width / 2,
+    centerY: rect.top + rect.height / 2,
+    pageX: rect.left + scrollX,
+    pageY: rect.top + scrollY,
+    pageCenterX: rect.left + scrollX + rect.width / 2,
+    pageCenterY: rect.top + scrollY + rect.height / 2,
+    width: rect.width,
+    height: rect.height
   };
 }
 

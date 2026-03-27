@@ -27,11 +27,11 @@ export function ToolCallLog({ logs }: { logs: ToolCallLog[] }) {
                 }} />
                 <span style={{ fontFamily: 'monospace', color: 'var(--accent)' }}>{log.name}</span>
                 <span style={{ color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {JSON.stringify(log.args).slice(0, 60)}
+                  {JSON.stringify(log.args).slice(0, 90)}
                 </span>
               </div>
               {log.result && (
-                <p style={{ margin: '1px 0 0 12px', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <p style={{ margin: '1px 0 0 12px', color: 'var(--muted)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                   {log.result}
                 </p>
               )}

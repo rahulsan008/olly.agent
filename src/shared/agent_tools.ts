@@ -119,6 +119,39 @@ export const AGENTIC_TOOLS_SCHEMAS = [
   {
     type: 'function' as const,
     function: {
+      name: 'button_byid',
+      description: 'Find a button or clickable control by exact selector, id, class, name, data-testid, or text',
+      parameters: {
+        type: 'object',
+        properties: {
+          selector: { type: 'string', description: 'Raw CSS selector to match exactly' },
+          id: { type: 'string', description: 'Exact element id' },
+          className: { type: 'string', description: 'Exact class list, space-separated if needed' },
+          name: { type: 'string', description: 'Exact name attribute' },
+          dataTestId: { type: 'string', description: 'Exact data-testid attribute' },
+          text: { type: 'string', description: 'Visible button text as fallback' },
+          query: { type: 'string', description: 'Fallback semantic query' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'find_buttons',
+      description: 'Find all visible buttons matching a query and return selectors with viewport coordinates',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Button text or label to search for' },
+          limit: { type: 'number', description: 'Maximum number of matches to return' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
       name: 'find_input',
       description: 'Find input fields by name, placeholder, or label',
       parameters: {
@@ -127,6 +160,25 @@ export const AGENTIC_TOOLS_SCHEMAS = [
           query: { type: 'string', description: 'Input field name, placeholder, or label' }
         },
         required: ['query']
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'input_byid',
+      description: 'Find an input by exact selector, id, class, name, data-testid, placeholder, or query',
+      parameters: {
+        type: 'object',
+        properties: {
+          selector: { type: 'string', description: 'Raw CSS selector to match exactly' },
+          id: { type: 'string', description: 'Exact element id' },
+          className: { type: 'string', description: 'Exact class list, space-separated if needed' },
+          name: { type: 'string', description: 'Exact name attribute' },
+          dataTestId: { type: 'string', description: 'Exact data-testid attribute' },
+          placeholder: { type: 'string', description: 'Exact placeholder text' },
+          query: { type: 'string', description: 'Fallback semantic query' }
+        }
       }
     }
   },
@@ -383,6 +435,21 @@ export const AGENTIC_TOOLS_SCHEMAS = [
   {
     type: 'function' as const,
     function: {
+      name: 'click_coordinates',
+      description: 'Click at a specific viewport x,y coordinate',
+      parameters: {
+        type: 'object',
+        properties: {
+          x: { type: 'number', description: 'Viewport x coordinate in CSS pixels' },
+          y: { type: 'number', description: 'Viewport y coordinate in CSS pixels' }
+        },
+        required: ['x', 'y']
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
       name: 'get_new_plan',
       description: 'Generate a new plan for a goal',
       parameters: {
@@ -532,6 +599,48 @@ export const AGENTIC_TOOLS_SCHEMAS = [
   {
     type: 'function' as const,
     function: {
+      name: 'think',
+      description: 'Use screenshot and current context to decide one concrete next action',
+      parameters: {
+        type: 'object',
+        properties: {
+          goal: { type: 'string', description: 'Current task or local goal' },
+          query: { type: 'string', description: 'Alias for goal or current question' },
+          candidates: {
+            type: 'array',
+            description: 'Optional candidate elements or buttons to choose from',
+            items: { type: 'object', additionalProperties: true }
+          },
+          context: { type: 'object', description: 'Structured page context and recent findings' },
+          trace: {
+            type: 'array',
+            description: 'Recent actions trace for context',
+            items: { type: 'object' }
+          }
+        }
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'summarize',
+      description: 'Summarize provided text or structured context using the LLM',
+      parameters: {
+        type: 'object',
+        properties: {
+          text: { type: 'string', description: 'Primary text to summarize' },
+          goal: { type: 'string', description: 'Optional instruction for what kind of summary is needed' },
+          context: { type: 'object', description: 'Optional structured context to include in the summary' },
+          maxSentences: { type: 'number', description: 'Maximum summary length in sentences' }
+        },
+        required: ['text']
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
       name: 'verify_task_completion',
       description: 'Verify if a task has been completed successfully',
       parameters: {
@@ -602,6 +711,20 @@ export const AGENTIC_TOOLS_SCHEMAS = [
           description: { type: 'string', description: 'Natural language description of element to click' }
         },
         required: ['description']
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'random_coordinates_by_text',
+      description: 'Return viewport coordinates for a random visible button matching the given text',
+      parameters: {
+        type: 'object',
+        properties: {
+          text: { type: 'string', description: 'Text to match against visible buttons' }
+        },
+        required: ['text']
       }
     }
   }

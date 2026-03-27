@@ -27,6 +27,43 @@ function getOpenAI(apiKey: string): OpenAI {
 }
 
 async function sendToolTestMessage(tabId: number, tool: string, args: Record<string, unknown>): Promise<ToolResult> {
+  if (tool === 'go_to_url' || tool === 'go_back' || tool === 'refresh') {
+    try {
+      switch (tool) {
+        case 'go_to_url': {
+          const url = typeof args.url === 'string' ? args.url : '';
+          if (!url) return { success: false, error: 'Missing args.url' };
+          await chrome.tabs.update(tabId, { url });
+          break;
+        }
+        case 'go_back':
+          await chrome.tabs.goBack(tabId);
+          break;
+        case 'refresh':
+          await chrome.tabs.reload(tabId);
+          break;
+      }
+
+      await new Promise<void>((resolve) => {
+        const done = () => {
+          clearTimeout(timeout);
+          chrome.tabs.onUpdated.removeListener(listener);
+          resolve();
+        };
+        const timeout = setTimeout(done, 12_000);
+        const listener = (id: number, info: chrome.tabs.TabChangeInfo) => {
+          if (id === tabId && info.status === 'complete') done();
+        };
+        chrome.tabs.onUpdated.addListener(listener);
+      });
+
+      const tab = await chrome.tabs.get(tabId).catch(() => null);
+      return { success: true, data: { url: tab?.url ?? '', title: tab?.title ?? '' } };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Navigation failed' };
+    }
+  }
+
   const payload = { type: 'RUN_AGENT_TOOL' as const, tool, args };
 
   const isReady = async (): Promise<boolean> => {

@@ -61,7 +61,7 @@ async function getPageSnapshot(tabId: number): Promise<string> {
 
 async function getInitialDomContext(tabId: number): Promise<Record<string, unknown>> {
   try {
-    const [buttons, inputs] = await Promise.all([
+    const [buttons, inputs, links, visibleElements] = await Promise.all([
       sendToContent<{ success?: boolean; data?: unknown }>(tabId, {
         type: 'RUN_AGENT_TOOL',
         tool: 'get_buttons',
@@ -71,12 +71,24 @@ async function getInitialDomContext(tabId: number): Promise<Record<string, unkno
         type: 'RUN_AGENT_TOOL',
         tool: 'get_inputs',
         args: {}
+      }),
+      sendToContent<{ success?: boolean; data?: unknown }>(tabId, {
+        type: 'RUN_AGENT_TOOL',
+        tool: 'get_links',
+        args: {}
+      }),
+      sendToContent<{ success?: boolean; data?: unknown }>(tabId, {
+        type: 'RUN_AGENT_TOOL',
+        tool: 'get_visible_elements',
+        args: {}
       })
     ]);
 
     return {
       buttons: buttons?.success ? buttons.data : [],
-      inputs: inputs?.success ? inputs.data : []
+      inputs: inputs?.success ? inputs.data : [],
+      links: links?.success ? links.data : [],
+      visibleElements: visibleElements?.success ? visibleElements.data : []
     };
   } catch {
     return {};

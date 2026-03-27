@@ -89,6 +89,13 @@ const SHARED_CONTEXT = [
   '- Never suggest login/authentication actions; user must do login manually.',
   '- Always prioritize progress: pick the next action most likely to unblock the task.',
   '- If context is ambiguous, choose robust actions in this order: find -> click/type -> wait -> scroll -> extract.',
+  '- If multiple similar buttons may exist, do not assume a single click query is enough.',
+  '- For ambiguous repeated buttons, prefer find_buttons first.',
+  '- If candidate choice depends on screenshot/layout, use think after find_buttons to select one concrete next action, usually click_coordinates.',
+  '- If an element has a known id, class, name, data-testid, selector, or exact placeholder, prefer input_byid or button_byid over fuzzy find_input/find_button.',
+  '- Context may include buttons, inputs, links, and visibleElements with exact selector and summary fields. Use those exact identifiers when duplicate labels exist.',
+  '- If multiple search boxes or links exist, distinguish them by selector, id, name, data-testid, placeholder, href, or surrounding literal text from context.',
+  '- Use random_coordinates_by_text only when the goal explicitly allows any/random matching button.',
   '- Prefer semantic queries over fragile selectors and avoid actions already shown as failed.'
 ].join('\n');
 
@@ -130,6 +137,11 @@ function planningPrompt(input: PromptGenerationInput): string {
     '- Each step = ONE action.',
     '- Use human-readable queries based on literal labels, placeholders, button text, link text, or visible text from context.',
     '- Do not invent composite labels like "YouTube search input" unless that exact text is visible in the provided context.',
+    '- If context includes an exact id/class/name/data-testid/selector/placeholder, use input_byid or button_byid instead of fuzzy lookup.',
+    '- If context includes exact link href/selector or multiple similar links, use the exact selector or href evidence from context instead of a generic link label.',
+    '- When multiple similar elements exist, choose the one whose selector/id/name/data-testid/placeholder/href best matches the goal and current page section.',
+    '- If a target label may appear multiple times, plan an explicit disambiguation flow: find_buttons -> think.',
+    '- Do not add a fixed click_coordinates or click step immediately after think. Think itself will choose and execute the concrete interaction at runtime.',
     '- Include ALL required steps explicitly.',
     '- Do NOT stop early.',
     '- Planner is responsible for FULL completion.',
@@ -159,7 +171,15 @@ function screenPrompt(input: PromptGenerationInput): string {
     `Context: ${stringify(input.context ?? {})}`,
     '',
     'Understand the current page using only provided DOM-derived context.',
-    'Focus on what is visible now, what probably went wrong previously, and what literal labels/placeholders/text should be used next.',
+    'Treat any earlier plan as stale if the page has changed or a step failed.',
+    'Focus on what is visible now, whether the current page matches the goal, what probably went wrong previously, and what literal labels/placeholders/text should be used next.',
+    'Your job is not just to explain the page. Your job is to continue the overall goal from the CURRENT state.',
+    'Return a short continuation action list that can replace the stale remainder of the old plan.',
+    'Actions should be a practical mini-plan from this page toward the goal, usually 1-6 actions.',
+    'Do not return validation-only actions unless they are strictly needed.',
+    'If the next step is obvious, return the next interaction plus the follow-up actions needed after it.',
+    'If navigation just happened, orient on the new page and produce the next actions for this page, not for the previous page.',
+    'Use exact selectors/ids/placeholders/hrefs from context when available.',
     'Return strict JSON only.',
     'Schema:',
     '{',
@@ -169,7 +189,40 @@ function screenPrompt(input: PromptGenerationInput): string {
     '  "blockers": ["optional blocker 1"],',
     '  "visibleActions": ["literal visible action/label 1", "literal visible action/label 2"],',
     '  "recommendedQueries": ["search", "Subscribe", "MrBeast channel"],',
-    '  "nextHint": "short practical guidance for replanning"',
+    '  "nextHint": "short practical guidance for replanning",',
+    '  "actions": [',
+    '    { "tool": "find|click|type|press_key|wait_for_element|wait_for_text|find_buttons|think|input_byid|button_byid|go_to_url|scroll|get_visible_elements", "args": {}, "why": "short" }',
+    '  ]',
+    '}'
+  ].join('\n');
+}
+
+function thinkPrompt(input: PromptGenerationInput): string {
+  return [
+    'Role: You are a browser action disambiguation engine.',
+    SHARED_CONTEXT,
+    '',
+    TOOL_REFERENCE,
+    '',
+    `Goal: ${input.goal}`,
+    `Trace: ${stringify(input.trace ?? [])}`,
+    `Context: ${stringify(input.context ?? {})}`,
+    '',
+    'Use the screenshot plus provided context/candidates to decide one concrete next action.',
+    'This tool is for cases where multiple similar matches exist or where the screenshot/layout is needed to choose correctly.',
+    'Only use click_coordinates when a real target is clearly visible and grounded by candidates or screenshot evidence.',
+    'If candidates are empty or the target is not clearly visible, do not invent coordinates.',
+    'Prefer click_coordinates when the right target comes from candidate coordinates.',
+    'If a plain semantic click is clearly safer than coordinates, you may return click instead.',
+    'If the right target is known by exact id/class/name/data-testid/selector/placeholder, prefer input_byid or button_byid.',
+    'Return strict JSON only.',
+    'Schema:',
+    '{',
+    '  "nextAction": { "tool": "click|click_coordinates|type|press_key|hover|scroll|wait_for_element|wait_for_text|find|find_button|button_byid|find_buttons|find_input|input_byid|find_by_text|get_visible_elements", "args": {} },',
+    '  "reason": "short explanation",',
+    '  "chosenIndex": 0,',
+    '  "chosenSelector": "optional selector",',
+    '  "confidence": 0.0',
     '}'
   ].join('\n');
 }
@@ -216,4 +269,8 @@ export function generatePrompt(input: PromptGenerationInput): string {
     default:
       return `Unsupported prompt type`;
   }
+}
+
+export function generateThinkPrompt(input: Omit<PromptGenerationInput, 'type'>): string {
+  return thinkPrompt({ ...input, type: 'planning' });
 }

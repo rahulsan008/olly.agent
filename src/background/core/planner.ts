@@ -159,8 +159,14 @@ function actionToStepText(action: AgentStep): string {
       return `Find '${query}'`;
     case 'find_input':
       return `Find ${query} field`;
+    case 'input_byid':
+      return 'Find input by exact selector/id/class/name';
     case 'find_button':
       return `Find '${query}' button`;
+    case 'button_byid':
+      return 'Find button by exact selector/id/class/name';
+    case 'find_buttons':
+      return `Find matching '${query}' buttons`;
     case 'press_key': {
       const key = typeof action.args.key === 'string' ? action.args.key : '';
       return `Press ${key}`;
@@ -181,9 +187,20 @@ function actionToStepText(action: AgentStep): string {
       return 'Capture visible elements';
     case 'understand_screen':
       return 'Check page state';
+    case 'think':
+      return 'Think and choose the next action';
     case 'visual_click': {
       const description = typeof action.args.description === 'string' ? action.args.description : '';
       return `Visual click: ${description}`;
+    }
+    case 'click_coordinates': {
+      const x = typeof action.args.x === 'number' ? action.args.x : Number(action.args.x);
+      const y = typeof action.args.y === 'number' ? action.args.y : Number(action.args.y);
+      return `Click coordinates (${Number.isFinite(x) ? x : '?'}, ${Number.isFinite(y) ? y : '?'})`;
+    }
+    case 'random_coordinates_by_text': {
+      const text = typeof action.args.text === 'string' ? action.args.text : '';
+      return `Get random coordinates for '${text}'`;
     }
     default:
       return `${action.tool}: ${query}`;
@@ -225,6 +242,33 @@ function patchSearchSubmit(actions: AgentStep[]): AgentStep[] {
       });
     }
   }
+  return output;
+}
+
+function shouldCollapseAfterThink(action: AgentStep | undefined): boolean {
+  if (!action) return false;
+  return action.tool === 'click'
+    || action.tool === 'click_coordinates'
+    || action.tool === 'visual_click'
+    || action.tool === 'button_byid'
+    || action.tool === 'random_coordinates_by_text';
+}
+
+function collapseThinkFollowUps(actions: AgentStep[]): AgentStep[] {
+  const output: AgentStep[] = [];
+
+  for (let i = 0; i < actions.length; i += 1) {
+    const current = actions[i];
+    output.push(current);
+
+    if (current.tool !== 'think') continue;
+
+    const next = actions[i + 1];
+    if (shouldCollapseAfterThink(next)) {
+      i += 1;
+    }
+  }
+
   return output;
 }
 
@@ -374,7 +418,7 @@ export async function planGoal(params: {
       .filter((value): value is AgentStep => Boolean(value))
       .filter((action) => action.tool !== 'get_new_plan'); // prevent self-recursive planning loops
 
-    const patchedActions = patchSearchSubmit(normalized).slice(0, 16);
+    const patchedActions = collapseThinkFollowUps(patchSearchSubmit(normalized)).slice(0, 16);
 
     if (!patchedActions.length) {
       const siteUrl = extractUrlFromGoal(goal);

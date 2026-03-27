@@ -9,7 +9,10 @@ import * as pressKey from './press_key/index';
 import * as find from './find/index';
 import * as findByText from './find_by_text/index';
 import * as findButton from './find_button/index';
+import * as buttonById from './button_byid/index';
+import * as findButtons from './find_buttons/index';
 import * as findInput from './find_input/index';
+import * as inputById from './input_byid/index';
 
 import * as getPageText from './get/page_text';
 import * as getElementText from './get/element_text';
@@ -37,6 +40,7 @@ import * as recordStop from './record/stop';
 import * as recordReplay from './record/replay';
 
 import * as screenshot from './screenshot/index';
+import * as clickCoordinates from './click_coordinates/index';
 
 import * as igLikePost from './instagram/like_post';
 import * as igCommentPost from './instagram/comment_post';
@@ -53,12 +57,15 @@ import * as generateSearchQuery from './generate_search_query/index';
 import * as rewriteActionQuery from './rewrite_action_query/index';
 import * as detectBlocker from './detect_blocker/index';
 import * as composeText from './compose_text/index';
+import * as think from './think/index';
+import * as summarize from './summarize/index';
 import * as verifyTaskCompletion from './verify_task_completion/index';
 import * as strategyReplan from './strategy_replan/index';
 import * as startTrace from './state/start_trace';
 import * as getTrace from './state/get_trace';
 import * as clearTrace from './state/clear_trace';
 import * as visualClick from './visual_click/index';
+import * as randomCoordinatesByText from './random_coordinates_by_text/index';
 
 export const toolRegistry: Record<string, ToolRunner> = {
   click: click.run,
@@ -70,7 +77,10 @@ export const toolRegistry: Record<string, ToolRunner> = {
   find: find.run,
   find_by_text: findByText.run,
   find_button: findButton.run,
+  button_byid: buttonById.run,
+  find_buttons: findButtons.run,
   find_input: findInput.run,
+  input_byid: inputById.run,
 
   get_page_text: getPageText.run,
   get_element_text: getElementText.run,
@@ -98,6 +108,7 @@ export const toolRegistry: Record<string, ToolRunner> = {
   record_replay: recordReplay.run,
 
   screenshot: screenshot.run,
+  click_coordinates: clickCoordinates.run,
 
   ig_like_post: igLikePost.run,
   ig_comment_post: igCommentPost.run,
@@ -114,6 +125,8 @@ export const toolRegistry: Record<string, ToolRunner> = {
   rewrite_action_query: rewriteActionQuery.run,
   detect_blocker: detectBlocker.run,
   compose_text: composeText.run,
+  think: think.run,
+  summarize: summarize.run,
   verify_task_completion: verifyTaskCompletion.run,
   strategy_replan: strategyReplan.run,
 
@@ -121,4 +134,5 @@ export const toolRegistry: Record<string, ToolRunner> = {
   get_trace: getTrace.run,
   clear_trace: clearTrace.run,
   visual_click: visualClick.run,
+  random_coordinates_by_text: randomCoordinatesByText.run,
 };

@@ -7,50 +7,17 @@ type TestResult = {
   error?: string;
 };
 
-const TOOLS = [
-  'click',
-  'type',
-  'hover',
-  'scroll',
-  'press_key',
-  'find',
-  'find_by_text',
-  'find_button',
-  'find_input',
-  'get_page_text',
-  'get_element_text',
-  'get_buttons',
-  'get_inputs',
-  'get_links',
-  'get_visible_elements',
-  'wait_for_element',
-  'wait_for_text',
-  'go_to_url',
-  'go_back',
-  'refresh',
-  'copy',
-  'paste',
-  'get_selected',
-  'generate_selector',
-  'record_start',
-  'record_stop',
-  'record_replay',
-  'screenshot'
-  ,
-  'ig_like_post',
-  'ig_comment_post',
-  'ig_get_post_context',
-  'ig_get_grid_posts',
-  'ig_open_grid_post',
-  'ig_close_post_view'
-] as const;
+const TOOLS = AGENTIC_TOOLS;
 
 const TOOL_HINTS: Partial<Record<AgenticToolName, string>> = {
   click: '{ "query": "Post button" }',
   type: '{ "query": "search box", "text": "hello" }',
   find_by_text: '{ "query": "Login" }',
   find_button: '{ "query": "Submit" }',
+  button_byid: '{ "id": "submit-button" }',
+  find_buttons: '{ "query": "Star", "limit": 10 }',
   find_input: '{ "query": "Email" }',
+  input_byid: '{ "id": "dashboard-repos-filter-left" }',
   get_element_text: '{ "selector": "article", "all": false }',
   extract: '{ "query": "main heading" }',
   wait_for_element: '{ "query": "comment box", "timeoutMs": 5000 }',
@@ -60,10 +27,11 @@ const TOOL_HINTS: Partial<Record<AgenticToolName, string>> = {
   generate_selector: '{ "query": "Post button" }',
   press_key: '{ "key": "Enter" }',
   scroll: '{ "direction": "down", "amount": 400 }',
-  ig_comment_post: '{ "text": "Testing comment from tool tab" }',
-  ig_get_grid_posts: '{ "limit": 12 }',
-  ig_open_grid_post: '{ "index": 0 }'
   start_trace: '{ "goal": "submit comment flow" }',
+  get_trace: '{}',
+  clear_trace: '{}',
+  click_coordinates: '{ "x": 120, "y": 220 }',
+  visual_click: '{ "description": "Subscribe button" }',
   get_new_plan: '{ "query": "Go to YouTube and subscribe to MrBeast", "imageBase64": "<optional base64>" }',
   understand_screen: '{ "goal": "Click Subscribe", "trace": [], "context": { "previousFailure": { "tool": "click", "error": "Button not found" } } }',
   classify_page_state: '{ "context": { "url": "https://example.com", "text": "..." } }',
@@ -73,8 +41,11 @@ const TOOL_HINTS: Partial<Record<AgenticToolName, string>> = {
   rewrite_action_query: '{ "goal": "click follow", "failedQuery": "follow", "trace": [] }',
   detect_blocker: '{ "goal": "continue flow", "context": { "text": "captcha" } }',
   compose_text: '{ "goal": "comment on post", "context": { "tone": "friendly" } }',
+  think: '{ "goal": "Choose the correct Star button", "candidates": [], "context": { "note": "use screenshot plus candidates" } }',
+  summarize: '{ "text": "Long content to summarize...", "goal": "Summarize for chat", "maxSentences": 3 }',
   verify_task_completion: '{ "goal": "subscribed to channel", "context": { "pageText": "Subscribed" } }',
-  strategy_replan: '{ "goal": "complete task", "trace": [], "context": { "failedStep": "click" } }'
+  strategy_replan: '{ "goal": "complete task", "trace": [], "context": { "failedStep": "click" } }',
+  random_coordinates_by_text: '{ "text": "Star" }'
 };
 
 function CopyButton({ text }: { text: string }) {

@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { generatePrompt } from '../prompts';
+import { generatePrompt, generateThinkPrompt } from '../prompts';
 import { recordLlmUsage } from './llm_usage';
 
 export type LlmToolResult = { success: boolean; data?: unknown; error?: string };
@@ -171,6 +171,44 @@ export async function runLlmTool(params: Params): Promise<LlmToolResult> {
           source: 'llm_tools.compose_text',
           system: 'Compose final user-facing text for typing. Return strict JSON: { "text": "..." }',
           user: args,
+          signal
+        });
+        return { success: true, data };
+      }
+      case 'think': {
+        const data = await callJson({
+          apiKey,
+          model,
+          source: 'llm_tools.think',
+          system: generateThinkPrompt({ goal, trace, context }),
+          user: { goal, trace, context, candidates: args.candidates ?? [] },
+          screenshotDataUrl,
+          signal
+        });
+        return { success: true, data };
+      }
+      case 'summarize': {
+        const maxSentences = typeof args.maxSentences === 'number'
+          ? Math.max(1, Math.min(10, args.maxSentences))
+          : 3;
+        const goalHint = typeof args.goal === 'string' && args.goal.trim()
+          ? args.goal.trim()
+          : 'Summarize the provided content clearly and briefly.';
+        const data = await callJson({
+          apiKey,
+          model,
+          source: 'llm_tools.summarize',
+          system: [
+            'Summarize the provided content.',
+            `Keep it to at most ${maxSentences} sentences.`,
+            'Use the goal/instruction if provided.',
+            'Return strict JSON: { "summary": "..." }'
+          ].join('\n'),
+          user: {
+            goal: goalHint,
+            text: args.text ?? '',
+            context: args.context ?? {}
+          },
           signal
         });
         return { success: true, data };

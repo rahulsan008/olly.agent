@@ -43,14 +43,15 @@ export function App() {
           upsertToolLog(msg.log);
           break;
         case 'TASK_COMPLETE':
-          setAgentState({ isRunning: false, error: null, phase: 'idle' });
+          setAgentState({ isRunning: false, error: null, phase: 'idle', currentTask: null });
+          addMessage({ role: 'assistant', content: msg.summary });
           break;
         case 'TASK_ERROR':
-          setAgentState({ isRunning: false, error: msg.error, phase: 'idle' });
+          setAgentState({ isRunning: false, error: msg.error, phase: 'idle', currentTask: null });
           addMessage({ role: 'assistant', content: `⚠️ ${msg.error}` });
           break;
         case 'TASK_STOPPED':
-          setAgentState({ isRunning: false, phase: 'idle' });
+          setAgentState({ isRunning: false, phase: 'idle', currentTask: null });
           addMessage({ role: 'assistant', content: 'Task stopped.' });
           break;
         case 'STATUS_UPDATE':

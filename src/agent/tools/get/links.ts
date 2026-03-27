@@ -1,5 +1,5 @@
 import type { ToolResult } from '../../core/types';
-import { extractElementSummary } from '../../utils/dom';
+import { extractElementSummary, selectorForElement } from '../../utils/dom';
 import { isVisible } from '../../utils/visibility';
 
 export async function run(): Promise<ToolResult> {
@@ -9,6 +9,9 @@ export async function run(): Promise<ToolResult> {
     success: true,
     data: links
       .filter((link) => isVisible(link))
-      .map((link) => extractElementSummary(link))
+      .map((link) => ({
+        selector: selectorForElement(link),
+        summary: extractElementSummary(link)
+      }))
   };
 }
