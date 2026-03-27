@@ -370,8 +370,8 @@ chrome.runtime.onMessage.addListener(
               resolve({ apiKey: data.apiKey ?? '', model: data.model ?? DEFAULT_MODEL });
             });
           });
-          const steps = tmpl.build({ count: message.count, commentText: message.commentText });
-          await runTemplate(executionTab.id, steps, send, signal, apiKey, model);
+          const steps = tmpl.build({ count: message.count, keyword: message.keyword });
+          await runTemplate(executionTab.id, steps, send, signal, apiKey, model, message.keyword);
         })();
         sendResponse({ ok: true });
         break;

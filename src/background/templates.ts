@@ -1,148 +1,175 @@
 // ── Template step types ───────────────────────────────────────────────────────
 
 export type TemplateStep =
-  | { action: 'navigate'; url: string }
-  | { action: 'click'; selector: string }
-  | { action: 'type'; selector: string; text: string }
-  | { action: 'highlight'; selector: string }
-  | { action: 'wait_element'; selector: string; timeout?: number }
-  | { action: 'wait_ms'; ms: number }
-  | { action: 'submit_comment' }
-  | { action: 'scroll'; direction: 'up' | 'down'; amount?: number }
-  | { action: 'press_key'; key: string }
-  | { action: 'ai_comment' };
+  | { action: 'navigate';      url: string }
+  | { action: 'click';         selector: string }
+  | { action: 'highlight';     selector: string }
+  | { action: 'wait_element';  selector: string; timeout?: number }
+  | { action: 'wait_ms';       ms: number }
+  | { action: 'scroll';        direction: 'up' | 'down'; amount?: number }
+  | { action: 'press_key';     key: string }
+  // AI-generated comment: reads post context then calls OpenAI
+  | { action: 'ai_comment' }
+  // Generic agent tool call — maps directly to toolRegistry
+  | { action: 'run_tool';      tool: string; args?: Record<string, unknown> }
+  // Keyword scan: scan up to maxPosts feed posts, engage only on matches,
+  // fall back to Explore search if fewer than `count` matches are found.
+  | { action: 'keyword_scan'; keyword: string; count: number; maxPosts?: number; mode?: 'like_and_comment' | 'like_only' | 'comment_only' };
 
 export interface TemplateParams {
   count: number;
-  commentText: string;
+  keyword?: string;
 }
 
 export interface TemplateDef {
   label: string;
-  needsComment: boolean;
-  needsAiComment?: boolean;
+  description: string;
+  needsKeyword?: boolean;
   build(params: TemplateParams): TemplateStep[];
 }
 
-// ── Platform templates ────────────────────────────────────────────────────────
+// ── Per-post step builders ────────────────────────────────────────────────────
 
-// Selectors for Instagram action buttons.
-// After liking, the button aria-label becomes "Unlike", so next post's "Like" is always a new post.
-const IG_LIKE    = 'button[aria-label="Like"], svg[aria-label="Like"]';
-const IG_COMMENT = 'button[aria-label="Comment"], svg[aria-label="Comment"]';
-const IG_TEXTAREA = "textarea[aria-label='Add a comment…'], textarea[placeholder='Add a comment…'], textarea[aria-label='Add a comment\u2026']";
-
-// Steps shared by every comment sequence: open box → fill text → submit → close → scroll
-function commentSteps(textStep: TemplateStep): TemplateStep[] {
+function likeSteps(): TemplateStep[] {
   return [
-    { action: 'click', selector: IG_COMMENT },
-    { action: 'wait_element', selector: IG_TEXTAREA, timeout: 5000 },
-    textStep,
-    { action: 'wait_ms', ms: 500 },
-    { action: 'submit_comment' },
-    { action: 'wait_ms', ms: 1000 },
-    { action: 'press_key', key: 'Escape' },   // close comment box
-    { action: 'wait_ms', ms: 600 },
-    { action: 'scroll', direction: 'down', amount: 900 },
+    { action: 'run_tool', tool: 'ig_like_post' },
+    { action: 'wait_ms',  ms: 800 },
+  ];
+}
+
+function commentSteps(): TemplateStep[] {
+  return [
+    { action: 'ai_comment' },
+    { action: 'wait_ms',   ms: 1000 },
+    { action: 'press_key', key: 'Escape' },
+    { action: 'wait_ms',   ms: 600 },
+  ];
+}
+
+function scrollNextPost(): TemplateStep[] {
+  return [
+    { action: 'scroll',  direction: 'down', amount: 900 },
     { action: 'wait_ms', ms: 1200 },
   ];
 }
 
+// ── Instagram templates ───────────────────────────────────────────────────────
+
 const instagram: Record<string, TemplateDef> = {
-  like_and_comment: {
-    label: 'Like & Comment',
-    needsComment: true,
-    build({ count, commentText }) {
-      const steps: TemplateStep[] = [
-        { action: 'navigate', url: 'https://www.instagram.com' },
-        { action: 'wait_element', selector: 'article', timeout: 10000 },
-        { action: 'wait_ms', ms: 1000 },
-      ];
-      for (let i = 0; i < count; i++) {
-        steps.push(
-          { action: 'click', selector: IG_LIKE },
-          { action: 'wait_ms', ms: 800 },
-          ...commentSteps({ action: 'type', selector: IG_TEXTAREA, text: commentText }),
-        );
-      }
-      return steps;
-    }
-  },
 
   like_and_ai_comment: {
-    label: 'Like & AI Comment',
-    needsComment: false,
-    needsAiComment: true,
-    build({ count }) {
-      const steps: TemplateStep[] = [
-        { action: 'navigate', url: 'https://www.instagram.com' },
+    label: 'Like & Comment',
+    description: 'Likes each post and leaves an AI-generated comment based on the post content.',
+    build({ count, keyword }) {
+      const base: TemplateStep[] = [
+        { action: 'navigate',     url: 'https://www.instagram.com' },
         { action: 'wait_element', selector: 'article', timeout: 10000 },
-        { action: 'wait_ms', ms: 1000 },
+        { action: 'wait_ms',      ms: 1000 },
       ];
+      if (keyword?.trim()) {
+        // Keyword provided → scan up to 15 posts, fall back to search if needed
+        return [...base, { action: 'keyword_scan', keyword, count, maxPosts: 15, mode: 'like_and_comment' }];
+      }
+      const steps = [...base];
       for (let i = 0; i < count; i++) {
-        steps.push(
-          { action: 'click', selector: IG_LIKE },
-          { action: 'wait_ms', ms: 800 },
-          ...commentSteps({ action: 'ai_comment' }),
-        );
+        steps.push(...likeSteps(), ...commentSteps(), ...scrollNextPost());
       }
       return steps;
-    }
+    },
   },
 
   like_only: {
     label: 'Like Only',
-    needsComment: false,
-    build({ count }) {
-      const steps: TemplateStep[] = [
-        { action: 'navigate', url: 'https://www.instagram.com' },
+    description: 'Likes posts without commenting.',
+    build({ count, keyword }) {
+      const base: TemplateStep[] = [
+        { action: 'navigate',     url: 'https://www.instagram.com' },
         { action: 'wait_element', selector: 'article', timeout: 10000 },
-        { action: 'wait_ms', ms: 1000 },
+        { action: 'wait_ms',      ms: 1000 },
       ];
+      if (keyword?.trim()) {
+        return [...base, { action: 'keyword_scan', keyword, count, maxPosts: 15, mode: 'like_only' }];
+      }
+      const steps = [...base];
       for (let i = 0; i < count; i++) {
-        steps.push(
-          { action: 'click', selector: IG_LIKE },
-          { action: 'wait_ms', ms: 800 },
-          { action: 'scroll', direction: 'down', amount: 900 },
-          { action: 'wait_ms', ms: 1000 },
-        );
+        steps.push(...likeSteps(), ...scrollNextPost());
       }
       return steps;
-    }
-  },
-
-  comment_only: {
-    label: 'Comment Only',
-    needsComment: true,
-    build({ count, commentText }) {
-      const steps: TemplateStep[] = [
-        { action: 'navigate', url: 'https://www.instagram.com' },
-        { action: 'wait_element', selector: 'article', timeout: 10000 },
-        { action: 'wait_ms', ms: 1000 },
-      ];
-      for (let i = 0; i < count; i++) {
-        steps.push(...commentSteps({ action: 'type', selector: IG_TEXTAREA, text: commentText }));
-      }
-      return steps;
-    }
+    },
   },
 
   ai_comment_only: {
-    label: 'AI Comment Only',
-    needsComment: false,
-    needsAiComment: true,
-    build({ count }) {
-      const steps: TemplateStep[] = [
-        { action: 'navigate', url: 'https://www.instagram.com' },
+    label: 'Comment Only',
+    description: 'Leaves an AI-generated comment on each post without liking.',
+    build({ count, keyword }) {
+      const base: TemplateStep[] = [
+        { action: 'navigate',     url: 'https://www.instagram.com' },
         { action: 'wait_element', selector: 'article', timeout: 10000 },
-        { action: 'wait_ms', ms: 1000 },
+        { action: 'wait_ms',      ms: 1000 },
       ];
+      if (keyword?.trim()) {
+        return [...base, { action: 'keyword_scan', keyword, count, maxPosts: 15, mode: 'comment_only' }];
+      }
+      const steps = [...base];
       for (let i = 0; i < count; i++) {
-        steps.push(...commentSteps({ action: 'ai_comment' }));
+        steps.push(...commentSteps(), ...scrollNextPost());
       }
       return steps;
-    }
+    },
   },
+
+  keyword_match: {
+    label: 'Keyword Match',
+    description:
+      'Scans up to 10 feed posts for your keyword. Likes & comments on matches. ' +
+      'Falls back to hashtag/Explore search if no matches are found in the feed.',
+    needsKeyword: true,
+    build({ count, keyword }) {
+      return [
+        { action: 'navigate',     url: 'https://www.instagram.com' },
+        { action: 'wait_element', selector: 'article', timeout: 10000 },
+        { action: 'wait_ms',      ms: 1000 },
+        { action: 'keyword_scan', keyword: keyword ?? '', count, maxPosts: 10 },
+      ];
+    },
+  },
+
+  like_explore_posts: {
+    label: 'Like Explore Posts',
+    description: 'Opens the Explore page and likes posts found there.',
+    build({ count }) {
+      const steps: TemplateStep[] = [
+        { action: 'navigate',     url: 'https://www.instagram.com/explore/' },
+        { action: 'wait_element', selector: 'article, main img', timeout: 10000 },
+        { action: 'wait_ms',      ms: 1500 },
+      ];
+      for (let i = 0; i < count; i++) {
+        steps.push(...likeSteps(), ...scrollNextPost());
+      }
+      return steps;
+    },
+  },
+
+  follow_user: {
+    label: 'Follow Users',
+    description: 'Visits the Explore page and follows suggested accounts.',
+    build({ count }) {
+      const steps: TemplateStep[] = [
+        { action: 'navigate',     url: 'https://www.instagram.com/explore/people/' },
+        { action: 'wait_element', selector: 'button', timeout: 10000 },
+        { action: 'wait_ms',      ms: 1000 },
+      ];
+      for (let i = 0; i < count; i++) {
+        steps.push(
+          { action: 'run_tool', tool: 'find_by_text', args: { text: 'Follow' } },
+          { action: 'run_tool', tool: 'click',        args: { query: 'Follow' } },
+          { action: 'wait_ms',  ms: 1200 },
+        );
+      }
+      return steps;
+    },
+  },
+
 };
 
 // ── Registry ──────────────────────────────────────────────────────────────────

@@ -18,13 +18,14 @@ export function TemplatePanel() {
 
   const platforms = Object.keys(TEMPLATES);
   const [platform, setPlatform] = useState(platforms[0]);
-  const [action, setAction] = useState(Object.keys(TEMPLATES[platforms[0]])[0]);
-  const [count, setCount] = useState(2);
-  const [commentText, setCommentText] = useState('');
+  const [action, setAction]     = useState(Object.keys(TEMPLATES[platforms[0]])[0]);
+  const [count, setCount]       = useState(2);
 
-  const actions = Object.entries(TEMPLATES[platform] ?? {});
-  const needsComment = TEMPLATES[platform]?.[action]?.needsComment ?? false;
-  const needsAiComment = TEMPLATES[platform]?.[action]?.needsAiComment ?? false;
+  const [keyword, setKeyword]   = useState('');
+
+  const actions     = Object.entries(TEMPLATES[platform] ?? {});
+  const currentTmpl = TEMPLATES[platform]?.[action];
+  const needsKeyword = currentTmpl?.needsKeyword ?? false;
 
   const handlePlatformChange = (p: string) => {
     setPlatform(p);
@@ -34,11 +35,8 @@ export function TemplatePanel() {
   const handleRun = () => {
     clearChat();
     chrome.runtime.sendMessage({
-      type: 'RUN_TEMPLATE',
-      platform,
-      action,
-      count,
-      commentText
+      type: 'RUN_TEMPLATE', platform, action, count,
+      ...(keyword.trim() ? { keyword: keyword.trim() } : {}),
     });
   };
 
@@ -46,7 +44,6 @@ export function TemplatePanel() {
     chrome.runtime.sendMessage({ type: 'STOP_TASK' });
   };
 
-  // Flatten tool logs for display
   const logs = [...toolLogs].reverse();
 
   return (
@@ -57,7 +54,7 @@ export function TemplatePanel() {
         padding: '14px 14px 10px', borderBottom: '1px solid var(--border)',
         display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0
       }}>
-        {/* Platform + Action row */}
+        {/* Platform + Action */}
         <div style={{ display: 'flex', gap: 8 }}>
           <div style={{ flex: 1 }}>
             <label style={labelStyle}>Platform</label>
@@ -87,6 +84,17 @@ export function TemplatePanel() {
           </div>
         </div>
 
+        {/* Template description */}
+        {currentTmpl?.description && (
+          <div style={{
+            fontSize: 11, color: 'var(--muted)', padding: '6px 10px',
+            background: 'var(--surface2)', borderRadius: 7, border: '1px solid var(--border)',
+            lineHeight: 1.5
+          }}>
+            {currentTmpl.description}
+          </div>
+        )}
+
         {/* Count */}
         <div>
           <label style={labelStyle}>Number of posts</label>
@@ -100,39 +108,47 @@ export function TemplatePanel() {
           />
         </div>
 
-        {/* Comment text */}
-        {needsComment && (
-          <div>
-            <label style={labelStyle}>Comment text</label>
-            <textarea
-              value={commentText}
-              onChange={e => setCommentText(e.target.value)}
-              disabled={isRunning}
-              placeholder="Enter your comment…"
-              rows={3}
-              style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.4 }}
-            />
-          </div>
-        )}
-        {needsAiComment && (
-          <div style={{
-            fontSize: 11, color: 'var(--muted)', padding: '6px 10px',
-            background: 'var(--surface2)', borderRadius: 7, border: '1px solid var(--border)'
-          }}>
-            ✨ AI will generate a unique comment based on each post's content
-          </div>
-        )}
+        {/* Keyword — always visible; required for Keyword Match, optional hint for others */}
+        <div>
+          <label style={labelStyle}>
+            Keyword{needsKeyword ? <span style={{ color: 'var(--accent)', marginLeft: 4 }}>*</span> : <span style={{ color: 'var(--muted)', marginLeft: 4 }}>(optional)</span>}
+          </label>
+          <input
+            type="text"
+            value={keyword}
+            onChange={e => setKeyword(e.target.value)}
+            disabled={isRunning}
+            placeholder={needsKeyword ? 'e.g. cricket, travel, AI…' : 'Filter by keyword (Keyword Match only)'}
+            style={{
+              ...inputStyle,
+              borderColor: needsKeyword && !keyword.trim() ? 'rgba(239,68,68,0.4)' : undefined,
+            }}
+          />
+          {needsKeyword && (
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>
+              Scans up to 10 feed posts. Falls back to hashtag search if no matches found.
+            </div>
+          )}
+        </div>
+
+        {/* AI comment notice */}
+        <div style={{
+          fontSize: 11, color: 'var(--muted)', padding: '6px 10px',
+          background: 'var(--surface2)', borderRadius: 7, border: '1px solid var(--border)'
+        }}>
+          ✨ Comments are AI-generated from each post's content — no manual input needed
+        </div>
 
         {/* Run / Stop */}
         <div style={{ display: 'flex', gap: 8 }}>
           {!isRunning ? (
             <button
               onClick={handleRun}
-              disabled={needsComment && !commentText.trim()}
+              disabled={needsKeyword && !keyword.trim()}
               style={{
                 flex: 1, padding: '9px 0', borderRadius: 9, border: 'none', cursor: 'pointer',
                 background: 'var(--accent)', color: '#fff', fontWeight: 600, fontSize: 13,
-                opacity: (needsComment && !commentText.trim()) ? 0.5 : 1
+                opacity: needsKeyword && !keyword.trim() ? 0.5 : 1,
               }}
             >
               ▶ Run

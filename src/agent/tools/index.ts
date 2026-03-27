@@ -37,6 +37,13 @@ import * as recordStop from './record/stop';
 import * as recordReplay from './record/replay';
 
 import * as screenshot from './screenshot/index';
+
+import * as igLikePost from './instagram/like_post';
+import * as igCommentPost from './instagram/comment_post';
+import * as igGetPostContext from './instagram/get_post_context';
+import * as igGetGridPosts from './instagram/get_grid_posts';
+import * as igOpenGridPost from './instagram/open_grid_post';
+import * as igClosePostView from './instagram/close_post_view';
 import * as getNewPlan from './get_new_plan/index';
 import * as understandScreen from './understand_screen/index';
 import * as classifyPageState from './classify_page_state/index';
@@ -91,6 +98,13 @@ export const toolRegistry: Record<string, ToolRunner> = {
   record_replay: recordReplay.run,
 
   screenshot: screenshot.run,
+
+  ig_like_post: igLikePost.run,
+  ig_comment_post: igCommentPost.run,
+  ig_get_post_context: igGetPostContext.run,
+  ig_get_grid_posts: igGetGridPosts.run,
+  ig_open_grid_post: igOpenGridPost.run,
+  ig_close_post_view: igClosePostView.run,
   get_new_plan: getNewPlan.run,
   understand_screen: understandScreen.run,
   classify_page_state: classifyPageState.run,

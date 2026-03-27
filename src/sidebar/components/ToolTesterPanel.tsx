@@ -7,7 +7,43 @@ type TestResult = {
   error?: string;
 };
 
-const TOOLS = AGENTIC_TOOLS;
+const TOOLS = [
+  'click',
+  'type',
+  'hover',
+  'scroll',
+  'press_key',
+  'find',
+  'find_by_text',
+  'find_button',
+  'find_input',
+  'get_page_text',
+  'get_element_text',
+  'get_buttons',
+  'get_inputs',
+  'get_links',
+  'get_visible_elements',
+  'wait_for_element',
+  'wait_for_text',
+  'go_to_url',
+  'go_back',
+  'refresh',
+  'copy',
+  'paste',
+  'get_selected',
+  'generate_selector',
+  'record_start',
+  'record_stop',
+  'record_replay',
+  'screenshot'
+  ,
+  'ig_like_post',
+  'ig_comment_post',
+  'ig_get_post_context',
+  'ig_get_grid_posts',
+  'ig_open_grid_post',
+  'ig_close_post_view'
+] as const;
 
 const TOOL_HINTS: Partial<Record<AgenticToolName, string>> = {
   click: '{ "query": "Post button" }',
@@ -24,8 +60,10 @@ const TOOL_HINTS: Partial<Record<AgenticToolName, string>> = {
   generate_selector: '{ "query": "Post button" }',
   press_key: '{ "key": "Enter" }',
   scroll: '{ "direction": "down", "amount": 400 }',
-  start_trace: '{ "goal": "submit comment flow" }'
-  ,
+  ig_comment_post: '{ "text": "Testing comment from tool tab" }',
+  ig_get_grid_posts: '{ "limit": 12 }',
+  ig_open_grid_post: '{ "index": 0 }'
+  start_trace: '{ "goal": "submit comment flow" }',
   get_new_plan: '{ "query": "Go to YouTube and subscribe to MrBeast", "imageBase64": "<optional base64>" }',
   understand_screen: '{ "goal": "Click Subscribe", "trace": [], "context": { "previousFailure": { "tool": "click", "error": "Button not found" } } }',
   classify_page_state: '{ "context": { "url": "https://example.com", "text": "..." } }',

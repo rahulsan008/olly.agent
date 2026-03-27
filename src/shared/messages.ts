@@ -3,7 +3,7 @@ import type { PageSnapshot, ToolCallLog, Plan } from './types';
 // Sidebar → Background
 export type SidebarToBackground =
   | { type: 'RUN_TASK'; task: string; firstMessage?: boolean }
-  | { type: 'RUN_TEMPLATE'; platform: string; action: string; count: number; commentText: string }
+  | { type: 'RUN_TEMPLATE'; platform: string; action: string; count: number; keyword?: string }
   | { type: 'RUN_TOOL_TEST'; tool: string; args: Record<string, unknown> }
   | { type: 'CAPTURE_SCREENSHOT'; quality?: number }
   | { type: 'GET_COORDINATES'; description: string; screenshotDataUrl: string }
